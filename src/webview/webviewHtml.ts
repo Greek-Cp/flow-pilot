@@ -57,6 +57,9 @@ export function getFlowViewerHtml(
   const viewerScriptUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, 'webview', 'viewer', 'viewer.js')
   );
+  const mermaidScriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, 'webview', 'shared', 'mermaid.min.js')
+  );
   const mermaidInitUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, 'webview', 'shared', 'mermaid-init.js')
   );
@@ -69,7 +72,7 @@ export function getFlowViewerHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} https://cdn.jsdelivr.net; img-src ${webview.cspSource} data:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource}; img-src ${webview.cspSource} data:;">
   <link rel="stylesheet" href="${viewerStyleUri}">
   <link rel="stylesheet" href="${themeStyleUri}">
   <title>Flow Pilot — ${flowTitle}</title>
@@ -95,13 +98,15 @@ export function getFlowViewerHtml(
       <div class="diagram-container" id="diagram-container">
         <div id="diagram" class="diagram"></div>
       </div>
-      <div id="inspector" class="inspector hidden">
+      <aside class="inspector" id="inspector">
+        <div id="inspector-resize-handle" class="inspector-resize-handle"></div>
         <div class="inspector-header">
-          <h3 id="inspector-title">Node Detail</h3>
-          <button id="inspector-close" class="toolbar-btn">✕</button>
+          <h2 class="inspector-title">Node Inspector</h2>
         </div>
-        <div id="inspector-content" class="inspector-content"></div>
-      </div>
+        <div id="inspector-content" class="inspector-content">
+          <div class="inspector-placeholder"><p>Click a node to inspect</p></div>
+        </div>
+      </aside>
     </div>
     <div id="progress" class="progress hidden">
       <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
@@ -111,7 +116,7 @@ export function getFlowViewerHtml(
       <p id="error-text"></p>
     </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="${mermaidScriptUri}"></script>
   <script src="${mermaidInitUri}"></script>
   <script src="${viewerScriptUri}"></script>
 </body>

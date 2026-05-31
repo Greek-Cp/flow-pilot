@@ -1,13 +1,13 @@
 /**
  * Flow Pilot — History Storage
- * CRUD operations for .vscode/flow-pilot/history.json
+ * CRUD operations for .flow-pilot/history.json
  */
 
-import * as vscode from 'vscode';
 import * as path from 'path';
 import type { HistoryEntry, HistoryIndex } from '../types/history';
 
-const HISTORY_DIR = '.vscode/flow-pilot';
+const HISTORY_DIR = '.flow-pilot';
+const LEGACY_HISTORY_DIR = '.vscode/flow-pilot';
 const HISTORY_FILE = 'history.json';
 const CURRENT_VERSION = 1;
 
@@ -15,12 +15,27 @@ function getHistoryPath(workspacePath: string): string {
   return path.join(workspacePath, HISTORY_DIR, HISTORY_FILE);
 }
 
+function getLegacyHistoryPath(workspacePath: string): string {
+  return path.join(workspacePath, LEGACY_HISTORY_DIR, HISTORY_FILE);
+}
+
 /** Read the history index from disk. Returns empty index if file missing or corrupt. */
 export function getHistoryIndex(workspacePath: string): HistoryIndex {
   const filePath = getHistoryPath(workspacePath);
+  const fs = require('fs');
+
+  if (!fs.existsSync(filePath)) {
+    const legacyPath = getLegacyHistoryPath(workspacePath);
+    if (fs.existsSync(legacyPath)) {
+      return readHistoryFile(workspacePath, legacyPath);
+    }
+  }
+
+  return readHistoryFile(workspacePath, filePath);
+}
+
+function readHistoryFile(workspacePath: string, filePath: string): HistoryIndex {
   try {
-    const uri = vscode.Uri.file(filePath);
-    // Synchronous read via fs (available in extension host)
     const content = require('fs').readFileSync(filePath, 'utf-8');
     const data = JSON.parse(content) as HistoryIndex;
     if (!data.version || !Array.isArray(data.entries)) {

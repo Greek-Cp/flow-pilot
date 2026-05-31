@@ -11,6 +11,26 @@ import type { Flow } from '../types/flow';
 
 /** Cache of open viewer panels by flow ID */
 const openPanels = new Map<string, vscode.WebviewPanel>();
+const output = vscode.window.createOutputChannel('Flow Pilot');
+
+function logViewer(message: string, data?: Record<string, unknown>): void {
+  const suffix = data ? ` ${JSON.stringify(data)}` : '';
+  output.appendLine(`[${new Date().toISOString()}] ${message}${suffix}`);
+}
+
+function toFlowPayload(flow: Flow): Record<string, unknown> {
+  return {
+    flowId: flow.id,
+    title: flow.title,
+    status: flow.status,
+    nodes: flow.nodes,
+    edges: flow.edges,
+    diagrams: flow.diagrams,
+    sourceFiles: flow.sourceFiles,
+    diagramTypes: flow.diagramTypes,
+    warnings: flow.warnings,
+  };
+}
 
 /** Create or reveal a flow viewer panel */
 export function createFlowViewerPanel(
@@ -18,10 +38,28 @@ export function createFlowViewerPanel(
   flowId: string,
   flow: Flow
 ): void {
+  output.show(true);
+  logViewer('createFlowViewerPanel', {
+    flowId,
+    status: flow.status,
+    nodeCount: flow.nodes.length,
+    edgeCount: flow.edges.length,
+    diagramTypes: flow.diagramTypes,
+    diagramCount: flow.diagrams.length,
+    firstDiagramType: flow.diagrams[0]?.type,
+    firstMermaidLength: flow.diagrams[0]?.mermaidSource?.length ?? 0,
+    firstMermaidPreview: flow.diagrams[0]?.mermaidSource?.slice(0, 120),
+  });
+
   // If panel already open, reveal it
   const existing = openPanels.get(flowId);
   if (existing) {
+    logViewer('revealExistingPanel', { flowId });
     existing.reveal();
+    existing.webview.postMessage({
+      type: 'flowLoaded',
+      payload: toFlowPayload(flow),
+    });
     return;
   }
 
@@ -36,30 +74,31 @@ export function createFlowViewerPanel(
     }
   );
 
-  panel.webview.html = getFlowViewerHtml(panel.webview, extensionUri, flow.title);
+  const postFlowLoaded = () => {
+    logViewer('postFlowLoaded', {
+      flowId: flow.id,
+      nodeCount: flow.nodes.length,
+      edgeCount: flow.edges.length,
+      diagramCount: flow.diagrams.length,
+      diagramTypes: flow.diagramTypes,
+    });
+    panel.webview.postMessage({
+      type: 'flowLoaded',
+      payload: toFlowPayload(flow),
+    });
+  };
 
   // Send flow data to webview
   panel.webview.onDidReceiveMessage((message) => {
-    handleViewerMessage(message, flow);
+    if (message.type === 'viewerLog') {
+      logViewer(`webview:${message.payload?.level || 'info'}`, message.payload);
+      return;
+    }
+    handleViewerMessage(message, flow, postFlowLoaded);
   });
 
-  // Send flow data after a short delay to ensure webview is ready
-  setTimeout(() => {
-    panel.webview.postMessage({
-      type: 'flowLoaded',
-      payload: {
-        flowId: flow.id,
-        title: flow.title,
-        status: flow.status,
-        nodes: flow.nodes,
-        edges: flow.edges,
-        diagrams: flow.diagrams,
-        sourceFiles: flow.sourceFiles,
-        diagramTypes: flow.diagramTypes,
-        warnings: flow.warnings,
-      },
-    });
-  }, 100);
+  panel.webview.html = getFlowViewerHtml(panel.webview, extensionUri, flow.title);
+  setTimeout(postFlowLoaded, 250);
 
   // Clean up on close
   panel.onDidDispose(() => {
@@ -70,15 +109,30 @@ export function createFlowViewerPanel(
 }
 
 /** Handle messages from the viewer webview */
-function handleViewerMessage(message: { type: string; payload: any }, flow: Flow): void {
+function handleViewerMessage(
+  message: { type: string; payload: any },
+  flow: Flow,
+  postFlowLoaded: () => void
+): void {
+  logViewer('handleViewerMessage', {
+    flowId: flow.id,
+    type: message.type,
+    payload: message.type === 'nodeClick' ? message.payload : undefined,
+  });
+
   switch (message.type) {
+    case 'ready': {
+      postFlowLoaded();
+      break;
+    }
+
     case 'nodeClick': {
       const nodeId = message.payload.nodeId;
       const node = flow.nodes.find((n) => n.id === nodeId);
       if (node) {
         // Read code snippet if file mapping exists
         let codeSnippet: string | undefined;
-        if (node.file && node.lineStart && node.lineEnd) {
+        if (node.file && node.lineStart) {
           try {
             const workspacePath = getWorkspacePath();
             if (workspacePath) {
@@ -87,7 +141,8 @@ function handleViewerMessage(message: { type: string; payload: any }, flow: Flow
               const fullPath = path.join(workspacePath, node.file);
               const content = fs.readFileSync(fullPath, 'utf-8');
               const lines = content.split('\n');
-              codeSnippet = lines.slice(node.lineStart - 1, node.lineEnd).join('\n');
+              const lineEnd = node.lineEnd || node.lineStart;
+              codeSnippet = lines.slice(node.lineStart - 1, lineEnd).join('\n');
             }
           } catch {
             // File not found — snippet will be undefined
@@ -111,10 +166,20 @@ function handleViewerMessage(message: { type: string; payload: any }, flow: Flow
             lineEnd: node.lineEnd,
             description: node.description,
             codeSnippet,
-            incomingEdges: incoming,
-            outgoingEdges: outgoing,
+            incoming: incoming.map((e) => {
+              const fromNode = flow.nodes.find((n) => n.id === e.from);
+              return { from: e.from, fromLabel: fromNode?.label || e.from, label: e.label };
+            }),
+            outgoing: outgoing.map((e) => {
+              const toNode = flow.nodes.find((n) => n.id === e.to);
+              return { to: e.to, toLabel: toNode?.label || e.to, label: e.label };
+            }),
           },
         });
+
+        if (node.file && node.lineStart) {
+          highlightCodeInEditor(node.file, node.lineStart, node.lineEnd || node.lineStart);
+        }
       }
       break;
     }

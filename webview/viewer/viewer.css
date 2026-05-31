@@ -1,6 +1,42 @@
 /* Flow Pilot — Flow Viewer Styles
  * All colors use VS Code CSS variables (Constitution Principle I)
+ * Inspector UI adapted from Graph Pilot
  */
+
+/* ============================================================================
+   CSS Variables (Spacing & Sizing Tokens)
+   ============================================================================ */
+
+:root {
+  --fp-spacing-xs: 4px;
+  --fp-spacing-sm: 8px;
+  --fp-spacing-md: 16px;
+  --fp-spacing-lg: 24px;
+  --fp-spacing-xl: 32px;
+
+  --fp-border-radius: 4px;
+  --fp-border-radius-lg: 8px;
+
+  --fp-font-size-xs: 11px;
+  --fp-font-size-sm: 12px;
+  --fp-font-size-md: 13px;
+  --fp-font-size-lg: 14px;
+  --fp-font-size-xl: 16px;
+
+  --fp-transition-fast: 150ms ease;
+  --fp-transition-normal: 250ms ease;
+
+  --fp-inspector-width: 320px;
+  --fp-inspector-min-width: 220px;
+  --fp-inspector-max-width: 600px;
+  --fp-inspector-height: 280px;
+  --fp-inspector-min-height: 140px;
+  --fp-inspector-max-height: 70vh;
+}
+
+/* ============================================================================
+   Base Styles
+   ============================================================================ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -15,9 +51,20 @@ body {
   flex-direction: column;
 }
 
-/* Header */
+#app {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
 .header {
-  padding: 8px 12px;
+  padding: var(--fp-spacing-sm) 12px;
   border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
   flex-shrink: 0;
 }
@@ -27,12 +74,15 @@ body {
   font-weight: 600;
 }
 
-/* Toolbar */
+/* ============================================================================
+   Toolbar
+   ============================================================================ */
+
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
+  gap: var(--fp-spacing-xs);
+  padding: var(--fp-spacing-xs) 12px;
   border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
   flex-shrink: 0;
 }
@@ -49,6 +99,7 @@ body {
   line-height: 1.6;
   min-width: 28px;
   text-align: center;
+  transition: background var(--fp-transition-fast);
 }
 
 .toolbar-btn:hover {
@@ -69,7 +120,10 @@ body {
   margin: 0 4px;
 }
 
-/* Diagram Tabs */
+/* ============================================================================
+   Diagram Tabs
+   ============================================================================ */
+
 .diagram-tabs {
   display: flex;
   gap: 0;
@@ -87,6 +141,7 @@ body {
   font-size: 0.85em;
   font-family: var(--vscode-font-family);
   cursor: pointer;
+  transition: color var(--fp-transition-fast), border-color var(--fp-transition-fast);
 }
 
 .tab-btn:hover {
@@ -98,20 +153,34 @@ body {
   border-bottom-color: var(--fp-btn-bg, var(--vscode-button-background));
 }
 
-/* Content Area */
+/* ============================================================================
+   Content Area
+   ============================================================================ */
+
 .content {
   flex: 1;
   display: flex;
   overflow: hidden;
   position: relative;
+  min-height: 0;
 }
 
-/* Diagram Container */
+/* ============================================================================
+   Diagram Container
+   ============================================================================ */
+
 .diagram-container {
   flex: 1;
   overflow: hidden;
   cursor: grab;
   position: relative;
+  /* Dotted grid background like graph-pilot */
+  background-image: radial-gradient(
+    circle,
+    var(--fp-border, var(--vscode-panel-border)) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
 }
 
 .diagram-container.grabbing {
@@ -124,100 +193,436 @@ body {
   left: 0;
   transform-origin: 0 0;
   padding: 24px;
+  min-width: 100%;
+  min-height: 100%;
 }
 
 .diagram svg {
   max-width: none;
+  display: block;
+  overflow: visible;
 }
 
-/* Inspector Panel */
+.diagram > svg {
+  background: var(--fp-bg, var(--vscode-editor-background));
+  outline: 1px dashed color-mix(in srgb, var(--fp-btn-bg, var(--vscode-button-background)) 45%, transparent);
+}
+
+.diagram svg .node rect,
+.diagram svg .node circle,
+.diagram svg .node ellipse,
+.diagram svg .node polygon,
+.diagram svg .node path,
+.diagram svg .actor,
+.diagram svg .actor-man line,
+.diagram svg .actor-man circle {
+  fill: color-mix(in srgb, var(--fp-bg, var(--vscode-editor-background)) 88%, var(--fp-btn-bg, var(--vscode-button-background))) !important;
+  stroke: var(--fp-btn-bg, var(--vscode-button-background)) !important;
+  stroke-width: 1.5px !important;
+}
+
+.diagram svg .label,
+.diagram svg .nodeLabel,
+.diagram svg .actor > text,
+.diagram svg .messageText,
+.diagram svg text {
+  fill: var(--fp-fg, var(--vscode-foreground)) !important;
+  color: var(--fp-fg, var(--vscode-foreground)) !important;
+}
+
+.diagram svg .edgePath path,
+.diagram svg .flowchart-link,
+.diagram svg .messageLine0,
+.diagram svg .messageLine1,
+.diagram svg line {
+  stroke: var(--fp-btn-bg, var(--vscode-button-background)) !important;
+  stroke-width: 1.5px !important;
+}
+
+.diagram svg marker path,
+.diagram svg .arrowheadPath {
+  fill: var(--fp-btn-bg, var(--vscode-button-background)) !important;
+  stroke: var(--fp-btn-bg, var(--vscode-button-background)) !important;
+}
+
+.mermaid-clickable-node {
+  cursor: pointer;
+}
+
+.mermaid-clickable-node:hover rect,
+.mermaid-clickable-node:hover polygon,
+.mermaid-clickable-node:hover circle,
+.mermaid-clickable-node:hover ellipse,
+.mermaid-clickable-node.node-highlight rect,
+.mermaid-clickable-node.node-highlight polygon,
+.mermaid-clickable-node.node-highlight circle,
+.mermaid-clickable-node.node-highlight ellipse {
+  stroke: var(--fp-btn-bg, var(--vscode-button-background)) !important;
+  stroke-width: 2px !important;
+}
+
+/* ============================================================================
+   Native SVG Diagram Styles
+   ============================================================================ */
+
+.native-diagram {
+  background: var(--fp-bg, var(--vscode-editor-background));
+  color: var(--fp-fg, var(--vscode-foreground));
+}
+
+.native-edge {
+  fill: none;
+  stroke: var(--fp-description, var(--vscode-descriptionForeground));
+  stroke-width: 1.5;
+  opacity: 0.75;
+}
+
+.native-edge-label {
+  fill: var(--fp-description, var(--vscode-descriptionForeground));
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: var(--fp-bg, var(--vscode-editor-background));
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.native-arrow {
+  fill: var(--fp-description, var(--vscode-descriptionForeground));
+}
+
+.native-node {
+  cursor: pointer;
+}
+
+.native-node rect {
+  fill: var(--fp-sidebar-bg, var(--vscode-sideBar-background));
+  stroke: var(--fp-border, var(--vscode-panel-border));
+  stroke-width: 1;
+}
+
+.native-node:hover rect,
+.native-node.node-highlight rect {
+  stroke: var(--fp-btn-bg, var(--vscode-button-background));
+  stroke-width: 2;
+}
+
+.native-node-title {
+  fill: var(--fp-fg, var(--vscode-foreground));
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.native-node-type,
+.native-node-file,
+.native-warning {
+  fill: var(--fp-description, var(--vscode-descriptionForeground));
+  font-size: 11px;
+}
+
+.sequence-lifeline {
+  stroke: var(--fp-border, var(--vscode-panel-border));
+  stroke-width: 1;
+  stroke-dasharray: 5 5;
+}
+
+.sequence-message {
+  stroke: var(--fp-description, var(--vscode-descriptionForeground));
+  stroke-width: 1.5;
+}
+
+.empty-diagram {
+  padding: var(--fp-spacing-md);
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+}
+
+.diagram-loading,
+.render-error {
+  padding: var(--fp-spacing-md);
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+}
+
+.render-error pre {
+  max-width: calc(100vw - 64px);
+  max-height: 55vh;
+  overflow: auto;
+  padding: var(--fp-spacing-sm);
+  border: 1px solid var(--fp-border, var(--vscode-panel-border));
+  background: var(--fp-bg, var(--vscode-editor-background));
+}
+
+/* ============================================================================
+   Node Inspector Panel (Graph-Pilot Style)
+   ============================================================================ */
+
 .inspector {
-  width: 320px;
-  border-left: 1px solid var(--fp-border, var(--vscode-panel-border));
+  width: var(--fp-inspector-width);
+  min-width: var(--fp-inspector-min-width);
+  max-width: var(--fp-inspector-max-width);
   background: var(--fp-sidebar-bg, var(--vscode-sideBar-background));
-  overflow-y: auto;
-  flex-shrink: 0;
+  border-left: 1px solid var(--fp-border, var(--vscode-panel-border));
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+  transition: opacity var(--fp-transition-normal);
 }
 
-.inspector.hidden { display: none; }
+/* Inspector is always visible (Graph Pilot pattern — no hidden state) */
+
+/* Slide-in animation */
+@keyframes inspectorSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes inspectorSlideInBottom {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inspector.slide-in {
+  animation: inspectorSlideIn 250ms ease forwards;
+}
+
+/* ── Resize Handle (vertical bar, left edge of inspector) ── */
+
+.inspector-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 20;
+  background: transparent;
+  transition: background var(--fp-transition-fast);
+}
+
+.inspector-resize-handle:hover,
+.inspector-resize-handle.active {
+  background: var(--fp-btn-bg, var(--vscode-focusBorder, #007acc));
+}
+
+/* ── Inspector Header ── */
 
 .inspector-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: var(--fp-spacing-md);
   border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
+  flex-shrink: 0;
 }
 
 .inspector-header h3 {
-  font-size: 0.95em;
+  font-size: var(--fp-font-size-lg);
   font-weight: 600;
+  margin: 0;
 }
+
+.inspector-close-btn {
+  background: none;
+  border: none;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: var(--fp-border-radius);
+  line-height: 1;
+  transition: color var(--fp-transition-fast), background var(--fp-transition-fast);
+}
+
+.inspector-close-btn:hover {
+  color: var(--fp-fg, var(--vscode-foreground));
+  background: var(--fp-btn-secondary-bg, var(--vscode-button-secondaryBackground));
+}
+
+/* ── Inspector Content ── */
 
 .inspector-content {
-  padding: 12px;
-  font-size: 0.9em;
-  line-height: 1.5;
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--fp-spacing-md);
 }
 
+.inspector-placeholder {
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  text-align: center;
+  padding: var(--fp-spacing-xl);
+  font-size: var(--fp-font-size-md);
+}
+
+/* ── Inspector Fields (Graph-Pilot Style) ── */
+
 .inspector-field {
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--fp-spacing-sm);
+  padding-bottom: var(--fp-spacing-sm);
+  border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
 }
 
 .inspector-label {
-  font-size: 0.8em;
+  font-size: var(--fp-font-size-xs);
   color: var(--fp-description, var(--vscode-descriptionForeground));
-  margin-bottom: 2px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 500;
 }
 
 .inspector-value {
-  font-size: 0.9em;
+  font-size: var(--fp-font-size-md);
+  word-break: break-word;
+  line-height: 1.4;
 }
+
+.inspector-value-strong {
+  font-weight: 600;
+  font-size: var(--fp-font-size-lg);
+}
+
+.inspector-value-path {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--fp-font-size-sm);
+  color: var(--fp-link, var(--vscode-textLink-foreground, #3794ff));
+  word-break: break-all;
+}
+
+/* ── Type Badge ── */
 
 .inspector-badge {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 2px;
-  font-size: 0.8em;
-  background: var(--fp-btn-bg, var(--vscode-button-background));
-  color: var(--fp-btn-fg, var(--vscode-button-foreground));
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px 8px;
+  font-size: var(--fp-font-size-xs);
+  font-weight: 500;
+  border-radius: var(--fp-border-radius);
+  background: var(--vscode-badge-background, #4d4d4d);
+  color: var(--vscode-badge-foreground, #ffffff);
+  text-transform: capitalize;
 }
 
-.code-snippet {
-  background: var(--fp-bg, var(--vscode-editor-background));
-  border: 1px solid var(--fp-border, var(--vscode-panel-border));
-  border-radius: 2px;
-  padding: 8px;
-  font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 0.85em;
-  overflow-x: auto;
-  white-space: pre;
-  max-height: 200px;
-  overflow-y: auto;
+/* ── Confidence Badge ── */
+
+.inspector-confidence {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px 8px;
+  font-size: var(--fp-font-size-sm);
+  font-weight: 600;
+  border-radius: var(--fp-border-radius);
 }
+
+.confidence-high {
+  background: rgba(46, 160, 67, 0.15);
+  color: var(--vscode-testing-passedBadgeForeground, #2ea043);
+}
+
+.confidence-medium {
+  background: rgba(204, 167, 0, 0.2);
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.confidence-low {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--vscode-editorError-foreground, #f85149);
+}
+
+/* ── Sections (Incoming/Outgoing/Evidence) ── */
+
+.inspector-section {
+  margin-top: var(--fp-spacing-sm);
+  margin-bottom: var(--fp-spacing-sm);
+}
+
+.inspector-section-title {
+  font-size: var(--fp-font-size-xs);
+  font-weight: 600;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: var(--fp-spacing-xs);
+}
+
+.inspector-edge {
+  font-size: var(--fp-font-size-sm);
+  padding: 3px 0;
+  color: var(--fp-fg, var(--vscode-foreground));
+}
+
+.inspector-edge-label {
+  font-size: var(--fp-font-size-xs);
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  margin-left: var(--fp-spacing-xs);
+}
+
+.inspector-evidence {
+  font-size: var(--fp-font-size-sm);
+  padding: 3px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.inspector-evidence-path {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--fp-font-size-xs);
+  color: var(--fp-link, var(--vscode-textLink-foreground, #3794ff));
+}
+
+.inspector-evidence-reason {
+  font-size: var(--fp-font-size-xs);
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+}
+
+/* ── Action Buttons (Graph-Pilot Style — full width, stacked) ── */
 
 .inspector-actions {
   display: flex;
-  gap: 4px;
-  margin-top: 12px;
+  flex-direction: column;
+  gap: var(--fp-spacing-sm);
+  margin-top: var(--fp-spacing-md);
+  padding-top: var(--fp-spacing-md);
+  border-top: 1px solid var(--fp-border, var(--vscode-panel-border));
 }
 
 .inspector-btn {
-  background: var(--fp-btn-bg, var(--vscode-button-background));
-  color: var(--fp-btn-fg, var(--vscode-button-foreground));
-  border: none;
-  border-radius: 2px;
-  padding: 4px 12px;
-  font-size: 0.85em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fp-spacing-xs);
+  width: 100%;
+  padding: 8px 12px;
   font-family: var(--vscode-font-family);
+  font-size: var(--fp-font-size-md);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--fp-border-radius);
   cursor: pointer;
+  transition: background var(--fp-transition-fast);
 }
 
-.inspector-btn:hover {
+.inspector-btn.primary {
+  background: var(--fp-btn-bg, var(--vscode-button-background));
+  color: var(--fp-btn-fg, var(--vscode-button-foreground));
+}
+
+.inspector-btn.primary:hover {
   background: var(--fp-btn-hover, var(--vscode-button-hoverBackground));
 }
 
@@ -226,19 +631,51 @@ body {
   color: var(--fp-btn-secondary-fg, var(--vscode-button-secondaryForeground));
 }
 
-/* Node click highlight */
+.inspector-btn.secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #4c4c4c);
+}
+
+/* ── Code Snippet ── */
+
+.code-snippet {
+  background: var(--fp-bg, var(--vscode-editor-background));
+  border: 1px solid var(--fp-border, var(--vscode-panel-border));
+  border-radius: var(--fp-border-radius);
+  padding: var(--fp-spacing-sm);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.85em;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ── No Mapping Message ── */
+
+.no-mapping {
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  font-style: italic;
+  padding: var(--fp-spacing-md) 0;
+  font-size: var(--fp-font-size-sm);
+}
+
+/* ── Node Click Highlight ── */
+
 .node-highlight {
   outline: 2px solid var(--fp-btn-bg, var(--vscode-button-background));
   outline-offset: 2px;
 }
 
-/* Progress */
+/* ============================================================================
+   Progress
+   ============================================================================ */
+
 .progress {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 8px 12px;
+  padding: var(--fp-spacing-sm) 12px;
   background: var(--fp-sidebar-bg, var(--vscode-sideBar-background));
   border-top: 1px solid var(--fp-border, var(--vscode-panel-border));
 }
@@ -250,7 +687,7 @@ body {
   background: var(--fp-border, var(--vscode-panel-border));
   border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 4px;
+  margin-bottom: var(--fp-spacing-xs);
 }
 
 .progress-fill {
@@ -265,13 +702,16 @@ body {
   color: var(--fp-description, var(--vscode-descriptionForeground));
 }
 
-/* Error Banner */
+/* ============================================================================
+   Error Banner
+   ============================================================================ */
+
 .error-banner {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  padding: 8px 12px;
+  padding: var(--fp-spacing-sm) 12px;
   background: var(--fp-error, var(--vscode-errorForeground));
   color: var(--fp-bg, var(--vscode-editor-background));
   font-size: 0.9em;
@@ -280,9 +720,79 @@ body {
 
 .error-banner.hidden { display: none; }
 
-/* No mapping message */
-.no-mapping {
-  color: var(--fp-description, var(--vscode-descriptionForeground));
-  font-style: italic;
-  padding: 16px 0;
+/* ============================================================================
+   Scrollbar Styles
+   ============================================================================ */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--fp-bg, var(--vscode-editor-background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--fp-border, var(--vscode-panel-border));
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fp-description, var(--vscode-descriptionForeground));
+}
+
+/* ============================================================================
+   Responsive Layout (Inspector moves to bottom on narrow screens)
+   ============================================================================ */
+
+@media (max-width: 600px) {
+  .content {
+    flex-direction: column;
+  }
+
+  .inspector {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    height: var(--fp-inspector-height);
+    min-height: var(--fp-inspector-min-height);
+    max-height: var(--fp-inspector-max-height);
+    border-left: none;
+    border-top: 1px solid var(--fp-border, var(--vscode-panel-border));
+  }
+
+  .inspector.slide-in {
+    animation: inspectorSlideInBottom 250ms ease forwards;
+  }
+
+  /* Resize handle becomes horizontal bar at top */
+  .inspector-resize-handle {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    cursor: row-resize;
+  }
+}
+
+/* ============================================================================
+   High Contrast Overrides
+   ============================================================================ */
+
+.vscode-high-contrast .inspector {
+  border-left-width: 2px;
+}
+
+.vscode-high-contrast .inspector-field {
+  border-bottom-width: 2px;
+}
+
+.vscode-high-contrast .inspector-badge {
+  border: 1px solid var(--vscode-contrastBorder, #6fc3df);
+}
+
+.vscode-high-contrast .inspector-btn:focus {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 2px;
 }

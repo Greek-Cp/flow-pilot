@@ -59,10 +59,10 @@
         <span class="meta-badge">${entry.sourceFileCount} files</span>
       </div>
       <div class="flow-item-actions">
-        <button class="action-btn" data-action="open" data-id="${entry.flowId}">Open</button>
-        <button class="action-btn" data-action="rename" data-id="${entry.flowId}">Rename</button>
-        <button class="action-btn" data-action="copy-prompt" data-id="${entry.flowId}">Copy Prompt</button>
-        <button class="action-btn danger" data-action="delete" data-id="${entry.flowId}">Delete</button>
+        <button class="action-btn" data-action="openFlow" data-id="${entry.flowId}">Open</button>
+        <button class="action-btn" data-action="renameFlow" data-id="${entry.flowId}">Rename</button>
+        <button class="action-btn" data-action="copyPrompt" data-id="${entry.flowId}">Copy Prompt</button>
+        <button class="action-btn danger" data-action="deleteFlow" data-id="${entry.flowId}">Delete</button>
       </div>
     `;
 
@@ -78,7 +78,15 @@
         e.stopPropagation();
         const action = btn.getAttribute('data-action');
         const flowId = btn.getAttribute('data-id');
-        vscode.postMessage({ type: action, payload: { flowId } });
+        const payload = { flowId };
+
+        if (action === 'renameFlow') {
+          const nextTitle = window.prompt('Rename flow', entry.title);
+          if (!nextTitle || nextTitle.trim() === entry.title) return;
+          payload.newTitle = nextTitle.trim();
+        }
+
+        vscode.postMessage({ type: action, payload });
       });
     });
 
@@ -90,4 +98,6 @@
     div.textContent = text;
     return div.innerHTML;
   }
+
+  vscode.postMessage({ type: 'ready', payload: {} });
 })();

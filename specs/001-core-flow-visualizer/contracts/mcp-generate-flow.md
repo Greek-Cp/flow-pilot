@@ -36,6 +36,8 @@ Analyzes the current workspace codebase and generates an interactive code flow d
 
 ```json
 {
+  "schemaVersion": 1,
+  "type": "flow-pilot.flow",
   "flowId": "a1b2c3d4-...",
   "title": "Payment System Flow",
   "status": "success",
@@ -44,7 +46,36 @@ Analyzes the current workspace codebase and generates an interactive code flow d
   "nodeCount": 8,
   "edgeCount": 10,
   "sourceFileCount": 3,
-  "diagramTypes": ["flowchart", "sequence"]
+  "diagramTypes": ["flowchart", "sequence"],
+  "workspacePath": "/path/to/workspace",
+  "historyPath": "/path/to/workspace/.flow-pilot/history.json",
+  "flowPath": "/path/to/workspace/.flow-pilot/flows/a1b2c3d4-....json",
+  "flow": {
+    "id": "a1b2c3d4-...",
+    "title": "Payment System Flow",
+    "description": "Code flow generated from prompt...",
+    "requestPrompt": "Show the payment flow...",
+    "status": "success",
+    "createdAt": "2026-05-31T00:00:00.000Z",
+    "updatedAt": "2026-05-31T00:00:00.000Z",
+    "diagramTypes": ["flowchart", "sequence"],
+    "nodes": [],
+    "edges": [],
+    "sourceFiles": [],
+    "diagrams": []
+  },
+  "historyEntry": {
+    "flowId": "a1b2c3d4-...",
+    "title": "Payment System Flow",
+    "description": "Code flow generated from prompt...",
+    "createdAt": "2026-05-31T00:00:00.000Z",
+    "updatedAt": "2026-05-31T00:00:00.000Z",
+    "status": "success",
+    "diagramTypes": ["flowchart", "sequence"],
+    "nodeCount": 8,
+    "edgeCount": 10,
+    "sourceFileCount": 3
+  }
 }
 ```
 

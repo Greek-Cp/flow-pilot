@@ -5,31 +5,23 @@
 
 import type { Node, Edge } from '../types/flow';
 
-/** Node type → Mermaid shape mapping */
-const NODE_SHAPES: Record<string, { open: string; close: string }> = {
-  ui:         { open: '[', close: ']' },           // Rectangle
-  controller: { open: '[', close: ']' },           // Rectangle
-  service:    { open: '(', close: ')' },           // Rounded
-  repository: { open: '[(', close: ')]' },         // Cylinder
-  model:      { open: '{', close: '}' },           // Rhombus
-  api:        { open: '[[', close: ']]' },         // Stadium
-  sdk:        { open: '[[', close: ']]' },         // Stadium
-  external:   { open: '([', close: '])' },         // Subroutine
-  unknown:    { open: '[', close: ']' },           // Rectangle
-};
-
 /** Sanitize a label for Mermaid syntax */
 function sanitizeLabel(label: string): string {
-  return label
+  const clean = label
     .replace(/"/g, "'")
-    .replace(/[\[\]{}()]/g, (ch) => `\\${ch}`)
+    .replace(/[|;]/g, '/')
+    .replace(/[<>]/g, '')
     .replace(/\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
     .substring(0, 60); // Truncate long labels
+  return clean || 'Node';
 }
 
 /** Sanitize a node ID for Mermaid syntax */
 function sanitizeId(id: string): string {
-  return id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const clean = id.replace(/[^a-zA-Z0-9_]/g, '_');
+  return /^[a-zA-Z_]/.test(clean) ? clean : `n_${clean}`;
 }
 
 /** Build a Mermaid flowchart from nodes and edges */
@@ -40,8 +32,7 @@ export function buildMermaidFlowchart(nodes: Node[], edges: Edge[]): string {
   for (const node of nodes) {
     const id = sanitizeId(node.id);
     const label = sanitizeLabel(node.label);
-    const shape = NODE_SHAPES[node.type] || NODE_SHAPES.unknown;
-    lines.push(`    ${id}${shape.open}"${label}"${shape.close}`);
+    lines.push(`    ${id}["${label}"]`);
   }
 
   // Add edges
@@ -76,7 +67,7 @@ export function buildMermaidSequence(nodes: Node[], edges: Edge[]): string {
   for (const edge of edges) {
     const from = sanitizeId(edge.from);
     const to = sanitizeId(edge.to);
-    const label = edge.label ? sanitizeLabel(edge.label) : '';
+    const label = edge.label ? sanitizeLabel(edge.label) : 'calls';
     lines.push(`    ${from}->>${to}: ${label}`);
   }
 

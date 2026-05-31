@@ -48,6 +48,12 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       this._handleMessage(message);
     });
 
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        this._sendHistory();
+      }
+    });
+
     // Load history on view ready
     this._sendHistory();
   }
@@ -76,6 +82,10 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
 
   private _handleMessage(message: { type: string; payload: any }): void {
     switch (message.type) {
+      case 'ready':
+        this._sendHistory();
+        break;
+
       case 'openFlow':
         this._onOpenFlow(message.payload.flowId);
         break;

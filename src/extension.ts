@@ -21,7 +21,7 @@ export function getWorkspacePath(): string | undefined {
 
 /** Get the storage base path for Flow Pilot */
 export function getStoragePath(workspacePath: string): string {
-  return path.join(workspacePath, '.vscode', 'flow-pilot');
+  return path.join(workspacePath, '.flow-pilot');
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -36,6 +36,15 @@ export function activate(context: vscode.ExtensionContext): void {
       if (workspacePath) {
         const flow = loadFlow(workspacePath, flowId);
         if (flow) {
+          console.log('[Flow Pilot] Loaded flow for viewer', {
+            flowId: flow.id,
+            status: flow.status,
+            nodeCount: flow.nodes.length,
+            edgeCount: flow.edges.length,
+            diagramCount: flow.diagrams.length,
+            diagramTypes: flow.diagramTypes,
+            firstMermaidLength: flow.diagrams[0]?.mermaidSource?.length ?? 0,
+          });
           createFlowViewerPanel(context.extensionUri, flowId, flow);
         } else {
           vscode.window.showErrorMessage('Flow not found.');
@@ -51,6 +60,8 @@ export function activate(context: vscode.ExtensionContext): void {
       { webviewOptions: { retainContextWhenHidden: true } }
     )
   );
+
+  registerHistoryWatchers(context, historyProvider);
 
   // Commands
   const openHistoryCmd = vscode.commands.registerCommand(
@@ -107,6 +118,36 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.lm.registerMcpServerDefinitionProvider('flow-pilot', mcpProvider)
   );
   console.log('[Flow Pilot] MCP server definition provider registered');
+}
+
+function registerHistoryWatchers(
+  context: vscode.ExtensionContext,
+  historyProvider: HistoryViewProvider
+): void {
+  const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  const refreshSoon = () => {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => historyProvider.refresh(), 150);
+  };
+
+  for (const folder of workspaceFolders) {
+    for (const pattern of ['.flow-pilot/**/*.json', '.vscode/flow-pilot/**/*.json']) {
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(folder, pattern)
+      );
+      context.subscriptions.push(
+        watcher,
+        watcher.onDidCreate(refreshSoon),
+        watcher.onDidChange(refreshSoon),
+        watcher.onDidDelete(refreshSoon)
+      );
+    }
+  }
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => historyProvider.refresh())
+  );
 }
 
 export function deactivate(): void {

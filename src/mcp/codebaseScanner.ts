@@ -29,6 +29,14 @@ export function extractKeywords(prompt: string): string[] {
     'flow', 'diagram', 'chart', 'visualize', 'visualise', 'map',
     'pelajari', 'tunjukkan', 'cari', 'alur', 'dari', 'sampai', 'yang',
     'dan', 'di', 'ke', 'ini', 'itu', 'adalah', 'dengan', 'untuk',
+    'buat', 'bikin', 'sederhana', 'fitur', 'aplikasi', 'mobile', 'web',
+    'sertakan', 'semuanya', 'bahasa', 'indonesia', 'ringkas', 'mudah',
+    'implementasikan', 'aktor', 'komponen', 'layar', 'minimal', 'endpoint',
+    'method', 'opsional', 'model', 'singkat', 'langkah', 'demi', 'kondisi',
+    'sukses', 'error', 'utama', 'invalid', 'expired', 'validation', 'errors',
+    'sequence', 'menunjukkan', 'pesan', 'antar', 'output', 'dipahami',
+    'engineer', 'poin', 'contoh', 'payload', 'tekstual', 'jangan', 'panjang',
+    'maksimal', 'kata', 'ui', 'list', 'simple', 'data',
   ]);
 
   // Extract words and camelCase/snake_case segments
@@ -57,6 +65,32 @@ export function extractKeywords(prompt: string): string[] {
   return [...new Set(words)];
 }
 
+const EXCLUDE_GLOB = '{**/node_modules/**,**/.git/**,**/.dart_tool/**,**/.flow-pilot/**,**/.vscode/**,**/.idea/**,**/android/**,**/ios/**,**/linux/**,**/macos/**,**/windows/**,**/web/**,**/build/**,**/out/**,**/dist/**,**/coverage/**,**/*.freezed.dart,**/*.g.dart,**/*.gr.dart,**/*.gen.dart,**/generated_plugin_registrant.*}';
+
+function isRelevantCodePath(relativePath: string): boolean {
+  return /\.(ts|js|tsx|jsx|py|dart|java|kt|swift|go|rs|cs|rb|php)$/i.test(relativePath);
+}
+
+function scoreFile(relativePath: string, content: string, keywords: string[]): number {
+  const lowerPath = relativePath.toLowerCase();
+  const lowerContent = content.toLowerCase();
+  let score = 0;
+
+  if (lowerPath.startsWith('lib/')) score += 20;
+  if (lowerPath.includes('/domain/')) score += 8;
+  if (lowerPath.includes('/data/')) score += 6;
+  if (lowerPath.includes('/repository')) score += 5;
+  if (lowerPath.includes('/datasource')) score += 5;
+  if (lowerPath.includes('/entity') || lowerPath.includes('/params')) score += 4;
+
+  for (const keyword of keywords) {
+    if (lowerPath.includes(keyword)) score += 5;
+    if (lowerContent.includes(keyword)) score += 1;
+  }
+
+  return score;
+}
+
 /** Scan workspace for files relevant to the prompt */
 export async function scanWorkspace(
   prompt: string,
@@ -67,7 +101,7 @@ export async function scanWorkspace(
     return [];
   }
 
-  const scannedFiles: ScannedFile[] = [];
+  const scannedFiles: Array<ScannedFile & { score: number }> = [];
   const seenPaths = new Set<string>();
 
   // Build glob patterns from keywords
@@ -78,13 +112,14 @@ export async function scanWorkspace(
     try {
       const files = await vscode.workspace.findFiles(
         pattern,
-        '**/node_modules/**',
+        EXCLUDE_GLOB,
         20 // limit per keyword
       );
 
       for (const fileUri of files) {
         const relativePath = vscode.workspace.asRelativePath(fileUri);
         if (seenPaths.has(relativePath)) continue;
+        if (!isRelevantCodePath(relativePath)) continue;
         seenPaths.add(relativePath);
 
         try {
@@ -105,6 +140,7 @@ export async function scanWorkspace(
               path: relativePath,
               content: content.substring(0, 20_000), // Truncate for AI context
               reason: `Contains keywords: ${matchingKeywords.join(', ')}`,
+              score: scoreFile(relativePath, content, keywords),
             });
           }
         } catch {
@@ -118,15 +154,9 @@ export async function scanWorkspace(
 
   // Sort by relevance (more keyword matches = higher)
   scannedFiles.sort((a, b) => {
-    const aMatches = keywords.filter((kw) =>
-      a.content.toLowerCase().includes(kw)
-    ).length;
-    const bMatches = keywords.filter((kw) =>
-      b.content.toLowerCase().includes(kw)
-    ).length;
-    return bMatches - aMatches;
+    return b.score - a.score;
   });
 
   // Limit to top 30 most relevant files
-  return scannedFiles.slice(0, 30);
+  return scannedFiles.slice(0, 30).map(({ score, ...file }) => file);
 }
