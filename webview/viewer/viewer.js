@@ -348,6 +348,7 @@
 
   // =====================================================================
   // Node Click Handling (matches Graph Pilot pattern)
+  // Uses mouseup-based detection to avoid setPointerCapture conflicts
   // =====================================================================
 
   function attachNodeClickHandlers() {
@@ -358,48 +359,40 @@
       nodeClassCount: svg.querySelectorAll('g.node').length,
     });
 
-    // Click on node → update inspector directly (Graph Pilot pattern)
-    svg.addEventListener('click', (e) => {
-      if (dragMoved) return;
-
-      const nodeGroup = e.target.closest('g.node,[data-id]');
-      if (!nodeGroup) {
-        // Clicked empty space → reset inspector to placeholder
-        selectedNodeId = null;
-        updateInspectorPlaceholder();
-        return;
-      }
-
-      const nodeId = resolveFlowNodeId(
-        nodeGroup.getAttribute('data-id') || nodeGroup.id,
-        normalizeText(nodeGroup.textContent || '')
-      );
-      if (!nodeId) return;
-
-      selectedNodeId = nodeId;
-      log('info', 'nodeClicked', { nodeId });
-
-      // Highlight selected node
-      diagramDiv.querySelectorAll('.node-highlight').forEach((n) => n.classList.remove('node-highlight'));
-      nodeGroup.classList.add('node-highlight');
-
-      // Update inspector directly from flowData (like Graph Pilot)
-      const node = flowData.nodes.find((n) => n.id === nodeId);
-      if (node) {
-        updateInspector(node, flowData);
-      }
-
-      // Notify extension host (for editor auto-highlight + code snippet enrichment)
-      vscode.postMessage({ type: 'nodeClick', payload: { nodeId } });
-    });
-
+    // Keyboard handler for accessibility
     svg.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       const nodeGroup = e.target.closest('g.node,[data-id]');
       if (!nodeGroup) return;
       e.preventDefault();
-      nodeGroup.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      handleNodeClick(nodeGroup);
     });
+  }
+
+  function handleNodeClick(nodeGroup) {
+    if (!flowData) return;
+
+    const nodeId = resolveFlowNodeId(
+      nodeGroup.getAttribute('data-id') || nodeGroup.id,
+      normalizeText(nodeGroup.textContent || '')
+    );
+    if (!nodeId) return;
+
+    selectedNodeId = nodeId;
+    log('info', 'nodeClicked', { nodeId });
+
+    // Highlight selected node
+    diagramDiv.querySelectorAll('.node-highlight').forEach((n) => n.classList.remove('node-highlight'));
+    nodeGroup.classList.add('node-highlight');
+
+    // Update inspector directly from flowData (like Graph Pilot)
+    const node = flowData.nodes.find((n) => n.id === nodeId);
+    if (node) {
+      updateInspector(node, flowData);
+    }
+
+    // Notify extension host (for editor auto-highlight + code snippet enrichment)
+    vscode.postMessage({ type: 'nodeClick', payload: { nodeId } });
   }
 
   function resolveFlowNodeId(renderedId, labelText) {
@@ -676,30 +669,52 @@
     setZoom(scale + delta);
   }, { passive: false });
 
-  // Pan with drag
-  diagramContainer.addEventListener('pointerdown', (e) => {
+  // Pan with mouse drag (NO setPointerCapture — allows SVG node clicks to work)
+  let mouseDownX = 0;
+  let mouseDownY = 0;
+
+  diagramContainer.addEventListener('mousedown', (e) => {
     if (isResizing) return;
+    if (e.button !== 0) return; // Left click only
     isDragging = true;
     dragMoved = false;
+    mouseDownX = e.clientX;
+    mouseDownY = e.clientY;
     dragStartX = e.clientX - translateX;
     dragStartY = e.clientY - translateY;
     diagramContainer.classList.add('grabbing');
-    diagramContainer.setPointerCapture(e.pointerId);
+    e.preventDefault();
   });
 
-  diagramContainer.addEventListener('pointermove', (e) => {
+  document.addEventListener('mousemove', (e) => {
     if (!isDragging || isResizing) return;
-    const dx = e.clientX - dragStartX - translateX;
-    const dy = e.clientY - dragStartY - translateY;
-    if (Math.sqrt(dx * dx + dy * dy) > 5) dragMoved = true;
+    const dx = e.clientX - mouseDownX;
+    const dy = e.clientY - mouseDownY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
     translateX = e.clientX - dragStartX;
     translateY = e.clientY - dragStartY;
     applyTransform();
   });
 
-  diagramContainer.addEventListener('pointerup', () => {
+  document.addEventListener('mouseup', (e) => {
+    if (!isDragging) return;
     isDragging = false;
     diagramContainer.classList.remove('grabbing');
+
+    // If mouse didn't move → this is a click, detect node under cursor
+    if (!dragMoved) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el) {
+        const nodeGroup = el.closest('g.node,[data-id]');
+        if (nodeGroup) {
+          handleNodeClick(nodeGroup);
+        } else {
+          // Clicked empty space → reset inspector
+          selectedNodeId = null;
+          updateInspectorPlaceholder();
+        }
+      }
+    }
   });
 
   // ─── Diagram Type Tabs ───
