@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "publisher": "flow-pilot",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.99.0"
   },
   "categories": [
     "Other"
@@ -46,6 +46,12 @@
       {
         "command": "flowpilot.highlightCode",
         "title": "Flow Pilot: Highlight Code"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "flow-pilot",
+        "label": "Flow Pilot"
       }
     ]
   },

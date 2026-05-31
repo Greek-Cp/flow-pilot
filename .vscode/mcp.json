@@ -1,0 +1,13 @@
+{
+  "servers": {
+    "flow-pilot": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/out/mcp/standalone.js",
+        "${workspaceFolder}"
+      ]
+    }
+  },
+  "inputs": []
+}

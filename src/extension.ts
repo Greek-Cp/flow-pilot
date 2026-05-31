@@ -79,6 +79,34 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(openHistoryCmd, openFlowCmd, highlightCodeCmd);
+
+  // ── MCP Server Definition Provider ──
+  const mcpProvider: vscode.McpServerDefinitionProvider = {
+    onDidChangeMcpServerDefinitions: undefined,
+    provideMcpServerDefinitions(): vscode.McpServerDefinition[] {
+      const workspacePath = getWorkspacePath();
+      // Path to the standalone MCP server entry point
+      const serverScript = path.join(context.extensionPath, 'out', 'mcp', 'standalone.js');
+
+      return [
+        new vscode.McpStdioServerDefinition(
+          'Flow Pilot',
+          process.execPath, // Use VS Code's Node.js
+          [serverScript, workspacePath || ''],
+          {}
+        ),
+      ];
+    },
+    resolveMcpServerDefinition(server: vscode.McpServerDefinition): vscode.McpServerDefinition {
+      // No resolution needed — server is ready as-is
+      return server;
+    },
+  };
+
+  context.subscriptions.push(
+    vscode.lm.registerMcpServerDefinitionProvider('flow-pilot', mcpProvider)
+  );
+  console.log('[Flow Pilot] MCP server definition provider registered');
 }
 
 export function deactivate(): void {
