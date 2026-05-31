@@ -111,6 +111,7 @@ export function getFlowViewerHtml(
       <p id="error-text"></p>
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <script src="${mermaidInitUri}"></script>
   <script src="${viewerScriptUri}"></script>
 </body>
