@@ -61,14 +61,20 @@
 
 ### Implementation for User Story 1
 
-- [ ] T015 [P] [US1] Create history page HTML in `webview/history/index.html` with: container for history list, empty state message div, flow item template (title, description, date, diagram type, node count, status badge), action buttons (open, rename, delete, copy prompt)
-- [ ] T016 [P] [US1] Create history page styles in `webview/history/history.css` using only VS Code CSS variables (`--vscode-editor-background`, `--vscode-foreground`, `--vscode-list-hoverBackground`, `--vscode-list-activeSelectionBackground`, `--vscode-button-background`, `--vscode-descriptionForeground`, `--vscode-errorForeground`) — flat design, thin borders, clear hover/active states
-- [ ] T017 [US1] Create history page JavaScript in `webview/history/history.js` that: receives `historyLoaded` message with entries array, renders list or empty state, handles button clicks (open, rename, delete, copy prompt) by posting messages back to extension host
-- [ ] T018 [US1] Implement Webview HTML generator in `src/webview/webviewHtml.ts` with function `getHistoryWebviewHtml(webview, extensionUri)` that returns full HTML document with CSP headers (`script-src ${webview.cspSource}`, `style-src ${webview.cspSource} 'unsafe-inline'`), loads history.js and history.css via webview URIs
-- [ ] T019 [US1] Implement history view provider in `src/webview/historyViewProvider.ts` implementing `vscode.WebviewViewProvider` with `resolveWebviewView()`: sets webview options (enableScripts, retainContextWhenHidden), loads history from storage, sends `historyLoaded` message, handles incoming messages (openFlow, deleteFlow, renameFlow, copyPrompt)
-- [ ] T020 [US1] Implement message handler in `src/webview/messageHandler.ts` with function `handleWebviewMessage(message, context)` that routes message types: `openFlow` → opens flow viewer, `deleteFlow` → confirms + deletes from storage, `renameFlow` → updates title in storage, `copyPrompt` → copies to clipboard
-- [ ] T021 [US1] Implement open history command in `src/commands/openHistoryCommand.ts` that registers the WebviewViewProvider for `flowpilot.history` view and opens the sidebar panel
-- [ ] T022 [US1] Wire history view into `src/extension.ts` activate(): register HistoryViewProvider with `vscode.window.registerWebviewViewProvider('flowpilot.history', provider)`, pass storage context
+- [ ] T012 [P] [US1] Unit test for historyStorage: add entry, read back, update title, delete entry, handle corrupt file in `tests/unit/storage/historyStorage.test.ts`
+- [ ] T013 [P] [US1] Unit test for flowStorage: save flow, load flow, delete flow, validate before write in `tests/unit/storage/flowStorage.test.ts`
+- [ ] T014 [P] [US1] Unit test for validation: valid flow passes, invalid flow rejected (missing title, empty nodes, lineStart > lineEnd, >50 nodes, self-loop edge) in `tests/unit/storage/validation.test.ts`
+
+### Implementation for User Story 1
+
+- [x] T015 [P] [US1] Create history page HTML in `webview/history/index.html` with: container for history list, empty state message div, flow item template (title, description, date, diagram type, node count, status badge), action buttons (open, rename, delete, copy prompt)
+- [x] T016 [P] [US1] Create history page styles in `webview/history/history.css` using only VS Code CSS variables (`--vscode-editor-background`, `--vscode-foreground`, `--vscode-list-hoverBackground`, `--vscode-list-activeSelectionBackground`, `--vscode-button-background`, `--vscode-descriptionForeground`, `--vscode-errorForeground`) — flat design, thin borders, clear hover/active states
+- [x] T017 [US1] Create history page JavaScript in `webview/history/history.js` that: receives `historyLoaded` message with entries array, renders list or empty state, handles button clicks (open, rename, delete, copy prompt) by posting messages back to extension host
+- [x] T018 [US1] Implement Webview HTML generator in `src/webview/webviewHtml.ts` with function `getHistoryWebviewHtml(webview, extensionUri)` that returns full HTML document with CSP headers (`script-src ${webview.cspSource}`, `style-src ${webview.cspSource} 'unsafe-inline'`), loads history.js and history.css via webview URIs
+- [x] T019 [US1] Implement history view provider in `src/webview/historyViewProvider.ts` implementing `vscode.WebviewViewProvider` with `resolveWebviewView()`: sets webview options (enableScripts, retainContextWhenHidden), loads history from storage, sends `historyLoaded` message, handles incoming messages (openFlow, deleteFlow, renameFlow, copyPrompt)
+- [x] T020 [US1] Implement message handler in `src/webview/messageHandler.ts` with function `handleWebviewMessage(message, context)` that routes message types: `openFlow` → opens flow viewer, `deleteFlow` → confirms + deletes from storage, `renameFlow` → updates title in storage, `copyPrompt` → copies to clipboard
+- [x] T021 [US1] Implement open history command in `src/commands/openHistoryCommand.ts` that registers the WebviewViewProvider for `flowpilot.history` view and opens the sidebar panel
+- [x] T022 [US1] Wire history view into `src/extension.ts` activate(): register HistoryViewProvider with `vscode.window.registerWebviewViewProvider('flowpilot.history', provider)`, pass storage context
 
 **Checkpoint**: User Story 1 fully functional — history panel shows flows, empty state works, open/rename/delete actions work.
 
@@ -88,11 +94,17 @@
 
 ### Implementation for User Story 2
 
-- [ ] T026 [P] [US2] Implement codebase scanner in `src/mcp/codebaseScanner.ts` with function `scanWorkspace(prompt, workspacePath)` that: extracts keywords from prompt, uses `vscode.workspace.findFiles()` to discover files matching keywords, reads file contents via `vscode.workspace.openTextDocument()`, returns array of `{ path, content, reason }` — returns empty array with error code if no workspace or no files found
-- [ ] T027 [US2] Implement flow builder in `src/mcp/flowBuilder.ts` with function `buildFlow(rawNodes, rawEdges, prompt, sourceFiles)` that: generates UUID for flow.id, creates title from prompt (first 100 chars), validates node count ≤ 50 (rejects with NODE_LIMIT_EXCEEDED), validates all edge references exist in nodes, creates Diagram objects, builds HistoryEntry, returns complete Flow object
-- [ ] T028 [US2] Implement mermaid builder in `src/mcp/mermaidBuilder.ts` with function `buildMermaidFlowchart(nodes, edges)` that: generates `flowchart TD` syntax, maps each node to `id["label"]` with shape based on type (rect for ui/controller, rounded for service, stadium for api, cylinder for repository), maps each edge to `from -->|label| to`, returns mermaid source string. Also implement `buildMermaidSequence(nodes, edges)` for sequence diagram syntax.
-- [ ] T029 [US2] Implement MCP server setup in `src/mcp/server.ts` with function `createMcpServer()` that: creates MCP server instance using `@modelcontextprotocol/sdk`, registers the `generate_flow` tool with input schema `{ prompt: string }`, returns server instance ready for transport connection
-- [ ] T030 [US2] Implement generate_flow tool in `src/mcp/generateFlowTool.ts` with function `generateFlowHandler(args, workspacePath)` that: validates prompt (non-empty, max 2000 chars), calls codebaseScanner, calls flowBuilder, calls mermaidBuilder, saves flow via flowStorage, updates history via historyStorage, returns success/partial/error response per contract — sends progress messages if webview is active
+- [ ] T023 [P] [US2] Unit test for flowBuilder: converts raw node/edge arrays into valid Flow object with generated ID, timestamps, validation in `tests/unit/mcp/flowBuilder.test.ts`
+- [ ] T024 [P] [US2] Unit test for mermaidBuilder: converts nodes/edges to valid Mermaid flowchart syntax, handles empty edges, handles single node, handles 50-node cap in `tests/unit/mcp/mermaidBuilder.test.ts`
+- [ ] T025 [P] [US2] Contract test for generate_flow tool: validates input schema (prompt required, non-empty), validates output schema (flowId, title, status, summary, historySaved), tests error responses (NO_WORKSPACE, EMPTY_PROMPT, NO_RELEVANT_FILES, NODE_LIMIT_EXCEEDED) in `tests/contract/generate-flow.test.ts`
+
+### Implementation for User Story 2
+
+- [x] T026 [P] [US2] Implement codebase scanner in `src/mcp/codebaseScanner.ts` with function `scanWorkspace(prompt, workspacePath)` that: extracts keywords from prompt, uses `vscode.workspace.findFiles()` to discover files matching keywords, reads file contents via `vscode.workspace.openTextDocument()`, returns array of `{ path, content, reason }` — returns empty array with error code if no workspace or no files found
+- [x] T027 [US2] Implement flow builder in `src/mcp/flowBuilder.ts` with function `buildFlow(rawNodes, rawEdges, prompt, sourceFiles)` that: generates UUID for flow.id, creates title from prompt (first 100 chars), validates node count ≤ 50 (rejects with NODE_LIMIT_EXCEEDED), validates all edge references exist in nodes, creates Diagram objects, builds HistoryEntry, returns complete Flow object
+- [x] T028 [US2] Implement mermaid builder in `src/mcp/mermaidBuilder.ts` with function `buildMermaidFlowchart(nodes, edges)` that: generates `flowchart TD` syntax, maps each node to `id["label"]` with shape based on type (rect for ui/controller, rounded for service, stadium for api, cylinder for repository), maps each edge to `from -->|label| to`, returns mermaid source string. Also implement `buildMermaidSequence(nodes, edges)` for sequence diagram syntax.
+- [x] T029 [US2] Implement MCP server setup in `src/mcp/server.ts` with function `createMcpServer()` that: creates MCP server instance using `@modelcontextprotocol/sdk`, registers the `generate_flow` tool with input schema `{ prompt: string }`, returns server instance ready for transport connection
+- [x] T030 [US2] Implement generate_flow tool in `src/mcp/generateFlowTool.ts` with function `generateFlowHandler(args, workspacePath)` that: validates prompt (non-empty, max 2000 chars), calls codebaseScanner, calls flowBuilder, calls mermaidBuilder, saves flow via flowStorage, updates history via historyStorage, returns success/partial/error response per contract — sends progress messages if webview is active
 - [ ] T031 [US2] Wire MCP server into extension activation in `src/extension.ts`: create MCP server on activate, connect stdio transport, register dispose on deactivate
 - [ ] T032 [US2] Connect MCP output to history panel: after flow saved, send `historyUpdated` message to history webview to refresh list automatically
 
@@ -112,11 +124,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T034 [P] [US3] Create Mermaid initialization script in `webview/shared/mermaid-init.js` that: loads Mermaid.js, configures `mermaid.initialize()` with theme variables from VS Code CSS (reads `getComputedStyle` for colors), sets `startOnLoad: false`, exposes `renderDiagram(id, source)` function that calls `mermaid.render()` and returns SVG string
-- [ ] T035 [P] [US3] Create shared theme CSS in `webview/shared/theme.css` that maps VS Code CSS variables to Mermaid theme variables: `--vscode-editor-background` → background, `--vscode-foreground` → text, `--vscode-button-background` → primary color, etc.
-- [ ] T036 [US3] Create flow viewer HTML in `webview/viewer/index.html` with: header (title, description), toolbar (zoom -, zoom %, zoom +, fit, reset, export buttons), diagram type tabs (Flowchart | Sequence), diagram container div, inspector panel div (initially hidden), loads viewer.js, viewer.css, mermaid-init.js, theme.css
-- [ ] T037 [US3] Create flow viewer styles in `webview/viewer/viewer.css` using only VS Code CSS variables — layout: header + toolbar at top, diagram area fills remaining space, inspector panel slides in from right (300px width), toolbar buttons styled as VS Code buttons, diagram container has `overflow: hidden` with `cursor: grab`/`grabbing`
-- [ ] T038 [US3] Create flow viewer JavaScript in `webview/viewer/viewer.js` implementing:
+- [x] T034 [P] [US3] Create Mermaid initialization script in `webview/shared/mermaid-init.js` that: loads Mermaid.js, configures `mermaid.initialize()` with theme variables from VS Code CSS (reads `getComputedStyle` for colors), sets `startOnLoad: false`, exposes `renderDiagram(id, source)` function that calls `mermaid.render()` and returns SVG string
+- [x] T035 [P] [US3] Create shared theme CSS in `webview/shared/theme.css` that maps VS Code CSS variables to Mermaid theme variables: `--vscode-editor-background` → background, `--vscode-foreground` → text, `--vscode-button-background` → primary color, etc.
+- [x] T036 [US3] Create flow viewer HTML in `webview/viewer/index.html` with: header (title, description), toolbar (zoom -, zoom %, zoom +, fit, reset, export buttons), diagram type tabs (Flowchart | Sequence), diagram container div, inspector panel div (initially hidden), loads viewer.js, viewer.css, mermaid-init.js, theme.css
+- [x] T037 [US3] Create flow viewer styles in `webview/viewer/viewer.css` using only VS Code CSS variables — layout: header + toolbar at top, diagram area fills remaining space, inspector panel slides in from right (300px width), toolbar buttons styled as VS Code buttons, diagram container has `overflow: hidden` with `cursor: grab`/`grabbing`
+- [x] T038 [US3] Create flow viewer JavaScript in `webview/viewer/viewer.js` implementing:
   - Receive `flowLoaded` message → store flow data, render initial diagram (flowchart)
   - Diagram type tab switching → re-render with selected diagram type
   - Zoom: mouse wheel listener → `scale` state (0.25–3.0), apply `transform: scale()` to diagram container
@@ -124,8 +136,8 @@
   - Pan: pointer down → track start position, pointer move → apply `translate()`, pointer up → end drag
   - Interaction disambiguation: pointer move < 5px threshold = click, ≥ 5px = pan
   - Display zoom percentage in toolbar
-- [ ] T039 [US3] Implement flow viewer provider in `src/webview/flowViewerProvider.ts` with function `createFlowViewerPanel(flowId, flowData)` that: creates `vscode.WebviewPanel` with `ViewColumn.One`, sets webview HTML using webviewHtml.ts, sends `flowLoaded` message with full flow data, handles incoming messages (nodeClick, openFile, highlightCode, export)
-- [ ] T040 [US3] Implement open flow command in `src/commands/openFlowCommand.ts` that: loads flow from storage by ID, creates flow viewer panel, handles errors (flow not found → show error message)
+- [x] T039 [US3] Implement flow viewer provider in `src/webview/flowViewerProvider.ts` with function `createFlowViewerPanel(flowId, flowData)` that: creates `vscode.WebviewPanel` with `ViewColumn.One`, sets webview HTML using webviewHtml.ts, sends `flowLoaded` message with full flow data, handles incoming messages (nodeClick, openFile, highlightCode, export)
+- [x] T040 [US3] Implement open flow command in `src/commands/openFlowCommand.ts` that: loads flow from storage by ID, creates flow viewer panel, handles errors (flow not found → show error message)
 
 **Checkpoint**: User Story 3 fully functional — diagrams render, zoom/pan/fit/reset work, diagram type switching works.
 
@@ -139,10 +151,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T041 [US4] Implement node click handling in `webview/viewer/viewer.js`: add event listener on diagram container using event delegation — find closest `[data-id]` attribute on SVG `<g>` elements, extract node ID, post `nodeClick` message to extension host with nodeId
-- [ ] T042 [US4] Implement inspector panel rendering in `webview/viewer/viewer.js`: receive `nodeDetail` message from extension, populate inspector div with: node label, type badge, file path (if available), line range (if available), code snippet (if available), incoming edges list, outgoing edges list, "Open File" button (if file mapping exists), "Highlight Code" button (if file mapping exists), "No source mapping" message (if no file)
-- [ ] T043 [US4] Implement node detail resolution in `src/webview/messageHandler.ts`: on `nodeClick` message, look up node by ID in stored flow data, read code snippet from source file (read lines lineStart–lineEnd), build incoming/outgoing edge lists, send `nodeDetail` message to webview with full node context
-- [ ] T044 [US4] Implement inspector panel styles in `webview/viewer/viewer.css`: panel slides in from right when active, shows node type as colored badge, code snippet in monospace pre/code block, action buttons styled as VS Code buttons, transitions for open/close
+- [x] T041 [US4] Implement node click handling in `webview/viewer/viewer.js`: add event listener on diagram container using event delegation — find closest `[data-id]` attribute on SVG `<g>` elements, extract node ID, post `nodeClick` message to extension host with nodeId
+- [x] T042 [US4] Implement inspector panel rendering in `webview/viewer/viewer.js`: receive `nodeDetail` message from extension, populate inspector div with: node label, type badge, file path (if available), line range (if available), code snippet (if available), incoming edges list, outgoing edges list, "Open File" button (if file mapping exists), "Highlight Code" button (if file mapping exists), "No source mapping" message (if no file)
+- [x] T043 [US4] Implement node detail resolution in `src/webview/flowViewerProvider.ts`: on `nodeClick` message, look up node by ID in stored flow data, read code snippet from source file (read lines lineStart–lineEnd), build incoming/outgoing edge lists, send `nodeDetail` message to webview with full node context
+- [x] T044 [US4] Implement inspector panel styles in `webview/viewer/viewer.css`: panel slides in from right when active, shows node type as colored badge, code snippet in monospace pre/code block, action buttons styled as VS Code buttons, transitions for open/close
 
 **Checkpoint**: User Story 4 fully functional — clicking nodes shows inspector with full details and code snippets.
 
@@ -156,10 +168,10 @@
 
 ### Implementation for User Story 5
 
-- [ ] T045 [US5] Implement highlight code command in `src/commands/highlightCodeCommand.ts` with function `openAndHighlight(filePath, lineStart, lineEnd)`: resolves file path relative to workspace, opens document via `vscode.workspace.openTextDocument()`, shows document in editor via `vscode.window.showTextDocument()`, creates selection range from lineStart to lineEnd, sets `editor.selection`, scrolls to selection via `editor.revealRange()` — handles file not found with error message
-- [ ] T046 [US5] Wire Open File button in `src/webview/messageHandler.ts`: on `openFile` message from webview, resolve file path, open in editor at lineStart via `vscode.window.showTextDocument()` with `{ selection: new Range(lineStart-1, 0, lineEnd-1, 0) }` — handle file not found: send `errorMessage` to webview
-- [ ] T047 [US5] Wire Highlight Code button in `src/webview/messageHandler.ts`: on `highlightCode` message, call `openAndHighlight()` from highlightCodeCommand.ts — handle file not found: send `errorMessage` to webview
-- [ ] T048 [US5] Implement error message display in `webview/viewer/viewer.js`: receive `errorMessage` message, show toast/banner in viewer with error text and "File not found. It may have been moved or deleted." message
+- [x] T045 [US5] Implement highlight code command in `src/commands/highlightCodeCommand.ts` with function `openAndHighlight(filePath, lineStart, lineEnd)`: resolves file path relative to workspace, opens document via `vscode.workspace.openTextDocument()`, shows document in editor via `vscode.window.showTextDocument()`, creates selection range from lineStart to lineEnd, sets `editor.selection`, scrolls to selection via `editor.revealRange()` — handles file not found with error message
+- [x] T046 [US5] Wire Open File button in `src/webview/flowViewerProvider.ts`: on `openFile` message from webview, resolve file path, open in editor at lineStart via `vscode.window.showTextDocument()` with `{ selection: new Range(lineStart-1, 0, lineEnd-1, 0) }` — handle file not found: send `errorMessage` to webview
+- [x] T047 [US5] Wire Highlight Code button in `src/webview/flowViewerProvider.ts`: on `highlightCode` message, call `highlightCodeInEditor()` — handle file not found with error message
+- [x] T048 [US5] Implement error message display in `webview/viewer/viewer.js`: receive `errorMessage` message, show toast/banner in viewer with error text and "File not found. It may have been moved or deleted." message
 
 **Checkpoint**: User Story 5 fully functional — clicking Open File and Highlight Code navigates to source code.
 
@@ -173,9 +185,9 @@
 
 ### Implementation for User Story 6
 
-- [ ] T049 [US6] Implement export Mermaid in `src/webview/messageHandler.ts`: on `exportMermaid` message, combine all diagram sources into a single markdown string, use `vscode.window.showSaveDialog()` to let user choose save location (default: `{flowTitle}.md`), write file via `vscode.workspace.fs.writeFile()`
-- [ ] T050 [US6] Implement export JSON in `src/webview/messageHandler.ts`: on `exportJson` message, serialize full flow data as formatted JSON, use `vscode.window.showSaveDialog()` (default: `{flowTitle}.json`), write file via `vscode.workspace.fs.writeFile()`
-- [ ] T051 [US6] Wire export buttons in `webview/viewer/viewer.js`: Export Mermaid button → post `exportMermaid` message, Export JSON button → post `exportJson` message
+- [x] T049 [US6] Implement export Mermaid in `src/webview/flowViewerProvider.ts`: on `exportMermaid` message, combine all diagram sources into a single markdown string, use `vscode.window.showSaveDialog()` to let user choose save location (default: `{flowTitle}.md`), write file
+- [x] T050 [US6] Implement export JSON in `src/webview/flowViewerProvider.ts`: on `exportJson` message, serialize full flow data as formatted JSON, use `vscode.window.showSaveDialog()` (default: `{flowTitle}.json`), write file
+- [x] T051 [US6] Wire export buttons in `webview/viewer/viewer.js`: Export Mermaid button → post `exportMermaid` message, Export JSON button → post `exportJson` message
 
 **Checkpoint**: User Story 6 fully functional — flows can be exported as Mermaid or JSON.
 
@@ -185,11 +197,11 @@
 
 **Purpose**: Quality improvements that affect multiple user stories
 
-- [ ] T052 [P] Implement delete flow with confirmation dialog in `src/webview/messageHandler.ts`: show `vscode.window.showWarningMessage()` with "Delete" and "Cancel" buttons before deleting
+- [x] T052 [P] Implement delete flow with confirmation dialog in `src/webview/historyViewProvider.ts`: show `vscode.window.showWarningMessage()` with "Delete" and "Cancel" buttons before deleting
 - [ ] T053 [P] Implement rename flow inline editing in `webview/history/history.js`: click title → contenteditable input, blur/enter → save new title via message
-- [ ] T054 [P] Implement Copy Prompt action in `src/webview/messageHandler.ts`: on `copyPrompt` message, copy requestPrompt to clipboard via `vscode.env.clipboard.writeText()`, show info message "Prompt copied to clipboard"
-- [ ] T055 [P] Implement corrupt history recovery in `src/storage/historyStorage.ts`: if JSON.parse fails, rename corrupt file to `history.json.corrupt.{timestamp}`, create fresh history.json, return empty index with warning logged
-- [ ] T056 [P] Implement loading/progress state in `webview/viewer/viewer.js`: receive `generationProgress` message, show progress bar and step text (understanding → searching → reading → building → generating → saving), hide when `flowLoaded` received
+- [x] T054 [P] Implement Copy Prompt action in `src/webview/historyViewProvider.ts`: on `copyPrompt` message, copy requestPrompt to clipboard via `vscode.env.clipboard.writeText()`, show info message "Prompt copied to clipboard"
+- [x] T055 [P] Implement corrupt history recovery in `src/storage/historyStorage.ts`: if JSON.parse fails, rename corrupt file to `history.json.corrupt.{timestamp}`, create fresh history.json, return empty index with warning logged
+- [x] T056 [P] Implement loading/progress state in `webview/viewer/viewer.js`: receive `generationProgress` message, show progress bar and step text (understanding → searching → reading → building → generating → saving), hide when `flowLoaded` received
 - [ ] T057 Implement generation progress reporting in `src/mcp/generateFlowTool.ts`: send `generationProgress` messages at each pipeline step with percentage (0%, 20%, 40%, 60%, 80%, 100%) to active webview if open
 - [ ] T058 Implement partial result display in `webview/viewer/viewer.js`: if flow status is "partial", show banner: "Partial Flow Generated — some parts could not be found" with list of missing items from warnings array
 - [ ] T059 Implement failed flow error display in `webview/viewer/viewer.js`: if flow status is "failed", show error message with suggestion from error response, allow copying the original prompt

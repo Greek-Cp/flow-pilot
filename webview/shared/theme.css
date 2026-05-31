@@ -1,0 +1,39 @@
+/* Flow Pilot — VS Code Theme Variable Mappings
+ * All colors derived from VS Code CSS variables (Constitution Principle I)
+ */
+
+:root {
+  /* Core colors */
+  --fp-bg: var(--vscode-editor-background);
+  --fp-fg: var(--vscode-foreground);
+  --fp-border: var(--vscode-panel-border);
+
+  /* UI elements */
+  --fp-btn-bg: var(--vscode-button-background);
+  --fp-btn-fg: var(--vscode-button-foreground);
+  --fp-btn-hover: var(--vscode-button-hoverBackground);
+  --fp-btn-secondary-bg: var(--vscode-button-secondaryBackground);
+  --fp-btn-secondary-fg: var(--vscode-button-secondaryForeground);
+
+  /* Input */
+  --fp-input-bg: var(--vscode-input-background);
+  --fp-input-fg: var(--vscode-input-foreground);
+  --fp-input-border: var(--vscode-input-border);
+
+  /* Lists */
+  --fp-list-hover: var(--vscode-list-hoverBackground);
+  --fp-list-active: var(--vscode-list-activeSelectionBackground);
+  --fp-list-active-fg: var(--vscode-list-activeSelectionForeground);
+
+  /* Text */
+  --fp-description: var(--vscode-descriptionForeground);
+  --fp-error: var(--vscode-errorForeground);
+  --fp-warning: var(--vscode-warningForeground);
+
+  /* Focus */
+  --fp-focus: var(--vscode-focusBorder);
+
+  /* Sidebar */
+  --fp-sidebar-bg: var(--vscode-sideBar-background);
+  --fp-sidebar-fg: var(--vscode-sideBar-foreground);
+}

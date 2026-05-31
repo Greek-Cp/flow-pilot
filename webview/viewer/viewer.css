@@ -1,0 +1,288 @@
+/* Flow Pilot — Flow Viewer Styles
+ * All colors use VS Code CSS variables (Constitution Principle I)
+ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--fp-fg, var(--vscode-foreground));
+  background-color: var(--fp-bg, var(--vscode-editor-background));
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
+  flex-shrink: 0;
+}
+
+.flow-title {
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
+  background: var(--fp-btn-secondary-bg, var(--vscode-button-secondaryBackground));
+  color: var(--fp-btn-secondary-fg, var(--vscode-button-secondaryForeground));
+  border: none;
+  border-radius: 2px;
+  padding: 2px 8px;
+  font-size: 0.85em;
+  font-family: var(--vscode-font-family);
+  cursor: pointer;
+  line-height: 1.6;
+  min-width: 28px;
+  text-align: center;
+}
+
+.toolbar-btn:hover {
+  background: var(--fp-btn-hover, var(--vscode-button-hoverBackground));
+}
+
+.zoom-label {
+  font-size: 0.85em;
+  min-width: 48px;
+  text-align: center;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--fp-border, var(--vscode-panel-border));
+  margin: 0 4px;
+}
+
+/* Diagram Tabs */
+.diagram-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  background: transparent;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 16px;
+  font-size: 0.85em;
+  font-family: var(--vscode-font-family);
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  color: var(--fp-fg, var(--vscode-foreground));
+}
+
+.tab-btn.active {
+  color: var(--fp-fg, var(--vscode-foreground));
+  border-bottom-color: var(--fp-btn-bg, var(--vscode-button-background));
+}
+
+/* Content Area */
+.content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Diagram Container */
+.diagram-container {
+  flex: 1;
+  overflow: hidden;
+  cursor: grab;
+  position: relative;
+}
+
+.diagram-container.grabbing {
+  cursor: grabbing;
+}
+
+.diagram {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  padding: 24px;
+}
+
+.diagram svg {
+  max-width: none;
+}
+
+/* Inspector Panel */
+.inspector {
+  width: 320px;
+  border-left: 1px solid var(--fp-border, var(--vscode-panel-border));
+  background: var(--fp-sidebar-bg, var(--vscode-sideBar-background));
+  overflow-y: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.inspector.hidden { display: none; }
+
+.inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
+}
+
+.inspector-header h3 {
+  font-size: 0.95em;
+  font-weight: 600;
+}
+
+.inspector-content {
+  padding: 12px;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.inspector-field {
+  margin-bottom: 12px;
+}
+
+.inspector-label {
+  font-size: 0.8em;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.inspector-value {
+  font-size: 0.9em;
+}
+
+.inspector-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 0.8em;
+  background: var(--fp-btn-bg, var(--vscode-button-background));
+  color: var(--fp-btn-fg, var(--vscode-button-foreground));
+}
+
+.code-snippet {
+  background: var(--fp-bg, var(--vscode-editor-background));
+  border: 1px solid var(--fp-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  padding: 8px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.85em;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.inspector-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.inspector-btn {
+  background: var(--fp-btn-bg, var(--vscode-button-background));
+  color: var(--fp-btn-fg, var(--vscode-button-foreground));
+  border: none;
+  border-radius: 2px;
+  padding: 4px 12px;
+  font-size: 0.85em;
+  font-family: var(--vscode-font-family);
+  cursor: pointer;
+}
+
+.inspector-btn:hover {
+  background: var(--fp-btn-hover, var(--vscode-button-hoverBackground));
+}
+
+.inspector-btn.secondary {
+  background: var(--fp-btn-secondary-bg, var(--vscode-button-secondaryBackground));
+  color: var(--fp-btn-secondary-fg, var(--vscode-button-secondaryForeground));
+}
+
+/* Node click highlight */
+.node-highlight {
+  outline: 2px solid var(--fp-btn-bg, var(--vscode-button-background));
+  outline-offset: 2px;
+}
+
+/* Progress */
+.progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 12px;
+  background: var(--fp-sidebar-bg, var(--vscode-sideBar-background));
+  border-top: 1px solid var(--fp-border, var(--vscode-panel-border));
+}
+
+.progress.hidden { display: none; }
+
+.progress-bar {
+  height: 4px;
+  background: var(--fp-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--fp-btn-bg, var(--vscode-button-background));
+  width: 0%;
+  transition: width 0.3s;
+}
+
+#progress-text {
+  font-size: 0.8em;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+}
+
+/* Error Banner */
+.error-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 12px;
+  background: var(--fp-error, var(--vscode-errorForeground));
+  color: var(--fp-bg, var(--vscode-editor-background));
+  font-size: 0.9em;
+  z-index: 10;
+}
+
+.error-banner.hidden { display: none; }
+
+/* No mapping message */
+.no-mapping {
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  font-style: italic;
+  padding: 16px 0;
+}

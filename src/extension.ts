@@ -5,6 +5,10 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { HistoryViewProvider } from './webview/historyViewProvider';
+import { createFlowViewerPanel } from './webview/flowViewerProvider';
+import { loadFlow } from './storage/flowStorage';
+import { openFileInEditor, highlightCodeInEditor } from './commands/highlightCodeCommand';
 
 /** Get the current workspace folder path, or undefined if no workspace */
 export function getWorkspacePath(): string | undefined {
@@ -23,9 +27,32 @@ export function getStoragePath(workspacePath: string): string {
 export function activate(context: vscode.ExtensionContext): void {
   console.log('[Flow Pilot] Extension activated');
 
-  // Commands will be registered by their respective modules
-  // For now, register stubs
+  // History View Provider
+  const historyProvider = new HistoryViewProvider(
+    context.extensionUri,
+    (flowId: string) => {
+      console.log(`[Flow Pilot] Open flow: ${flowId}`);
+      const workspacePath = getWorkspacePath();
+      if (workspacePath) {
+        const flow = loadFlow(workspacePath, flowId);
+        if (flow) {
+          createFlowViewerPanel(context.extensionUri, flowId, flow);
+        } else {
+          vscode.window.showErrorMessage('Flow not found.');
+        }
+      }
+    }
+  );
 
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      HistoryViewProvider.viewType,
+      historyProvider,
+      { webviewOptions: { retainContextWhenHidden: true } }
+    )
+  );
+
+  // Commands
   const openHistoryCmd = vscode.commands.registerCommand(
     'flowpilot.openHistory',
     () => {
@@ -38,17 +65,15 @@ export function activate(context: vscode.ExtensionContext): void {
     (flowId?: string) => {
       if (flowId) {
         console.log(`[Flow Pilot] Open flow: ${flowId}`);
-        // Will be wired to flowViewerProvider in US3
       }
     }
   );
 
   const highlightCodeCmd = vscode.commands.registerCommand(
     'flowpilot.highlightCode',
-    (filePath?: string, lineStart?: number, lineEnd?: number) => {
+    async (filePath?: string, lineStart?: number, lineEnd?: number) => {
       if (filePath && lineStart !== undefined) {
-        console.log(`[Flow Pilot] Highlight: ${filePath}:${lineStart}-${lineEnd}`);
-        // Will be wired to highlightCodeCommand in US5
+        await highlightCodeInEditor(filePath, lineStart, lineEnd);
       }
     }
   );

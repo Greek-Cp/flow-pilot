@@ -1,0 +1,177 @@
+/* Flow Pilot — History Page Styles
+ * All colors use VS Code CSS variables (Constitution Principle I)
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background-color: var(--vscode-editor-background);
+  padding: 8px;
+}
+
+.hidden { display: none !important; }
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-state h2 {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  font-size: 0.9em;
+  line-height: 1.5;
+  max-width: 360px;
+}
+
+.hint {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--vscode-textBlockQuote-background);
+  border-left: 3px solid var(--vscode-textBlockQuote-border);
+  border-radius: 2px;
+  font-style: italic;
+  font-size: 0.85em;
+}
+
+/* History List */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Flow Item */
+.flow-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.flow-item:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.flow-item.active {
+  background-color: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.flow-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.flow-item-title {
+  font-weight: 600;
+  font-size: 0.95em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.flow-item-date {
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+.flow-item-description {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 6px;
+}
+
+.flow-item-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-success { background-color: var(--vscode-testing-passIcon-foreground, #4ec9b0); }
+.status-partial { background-color: var(--vscode-testing-queuedIcon-foreground, #cca700); }
+.status-failed  { background-color: var(--vscode-testing-failIcon-foreground, #f14c4c); }
+
+/* Actions */
+.flow-item-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.action-btn {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 2px;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  font-family: var(--vscode-font-family);
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.action-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.action-btn.danger {
+  color: var(--vscode-errorForeground);
+}
+
+/* Loading */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  color: var(--vscode-descriptionForeground);
+}
