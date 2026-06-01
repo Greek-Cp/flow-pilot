@@ -6,6 +6,11 @@
 import { scanWorkspace, type ScannedFile } from './codebaseScanner';
 import { buildFlow, type RawNode, type RawEdge } from './flowBuilder';
 import { buildMermaidFlowchart, buildMermaidSequence } from './mermaidBuilder';
+import {
+  buildSourceMetadata,
+  conceptualEvidence,
+  relationshipEvidence,
+} from './flowMetadata';
 import { saveFlow } from '../storage/flowStorage';
 import { addHistoryEntry } from '../storage/historyStorage';
 import type { Flow, SourceFile, DiagramType } from '../types/flow';
@@ -116,9 +121,6 @@ export async function generateFlowHandler(
   }
 
   const isProductFlow = shouldBuildProductFlow(prompt);
-  if (isProductFlow) {
-    scannedFiles = [];
-  }
   const isPromptOnlyFlow = scannedFiles.length === 0;
 
   // Build source files list
@@ -143,32 +145,41 @@ export async function generateFlowHandler(
   if (isPromptOnlyFlow) {
     const fallback = buildPromptOnlyFlow(prompt);
     rawNodes = fallback.nodes;
-    rawEdges = fallback.edges;
+    rawEdges = enrichEdges(fallback.edges, rawNodes, false);
     warnings = isProductFlow
-      ? undefined
+      ? ['No matching source files were found, so Flow Pilot generated a conceptual prompt-only flow.']
       : ['No matching source files were found, so Flow Pilot generated a prompt-only flow.'];
   } else {
-    rawNodes = scannedFiles.slice(0, 50).map((f, i) => ({
-      id: `file_${i}`,
-      label: f.path.split('/').pop() || f.path,
-      type: guessNodeType(f.path),
-      file: f.path,
-      lineStart: 1,
-      lineEnd: Math.min(50, f.content.split('\n').length),
-      description: f.reason,
-    }));
+    rawNodes = scannedFiles.slice(0, 50).map((f, i) => {
+      const metadata = buildSourceMetadata(f);
+      return {
+        id: `file_${i}`,
+        label: metadata.symbolName || f.path.split('/').pop() || f.path,
+        type: metadata.type,
+        file: f.path,
+        lineStart: metadata.lineStart,
+        lineEnd: metadata.lineEnd,
+        description: metadata.description,
+        symbolName: metadata.symbolName,
+        reason: metadata.reason,
+        confidence: metadata.confidence,
+        evidence: metadata.evidence,
+      };
+    });
 
     rawEdges = [];
     // Create sequential edges between files
     for (let i = 0; i < rawNodes.length - 1; i++) {
+      const meta = relationshipEvidence(rawNodes[i].label, rawNodes[i + 1].label, undefined, true);
       rawEdges.push({
         from: rawNodes[i].id,
         to: rawNodes[i + 1].id,
+        ...meta,
       });
     }
   }
 
-  const flowStatus: 'success' | 'partial' = isPromptOnlyFlow && !isProductFlow ? 'partial' : 'success';
+  const flowStatus: 'success' | 'partial' = isPromptOnlyFlow ? 'partial' : 'success';
 
   // Generate Mermaid diagrams
   const mermaidFlowchart = buildMermaidFlowchart(
@@ -256,10 +267,10 @@ export async function generateFlowHandler(
     flowId: result.flow.id,
     title: result.flow.title,
     status: result.flow.status,
-    summary: isProductFlow
-      ? `Generated conceptual flow with ${rawNodes.length} nodes.`
-      : isPromptOnlyFlow
-      ? `Generated prompt-only flow with ${rawNodes.length} nodes because no matching source files were found.`
+    summary: isPromptOnlyFlow
+      ? isProductFlow
+        ? `Generated conceptual prompt-only flow with ${rawNodes.length} nodes because no matching source files were found.`
+        : `Generated prompt-only flow with ${rawNodes.length} nodes because no matching source files were found.`
       : `Generated flow from ${scannedFiles.length} files with ${rawNodes.length} nodes.`,
     historySaved: true,
     nodeCount: rawNodes.length,
@@ -272,19 +283,6 @@ export async function generateFlowHandler(
   };
 }
 
-/** Guess node type from file path */
-function guessNodeType(filePath: string): string {
-  const lower = filePath.toLowerCase();
-  if (lower.includes('screen') || lower.includes('page') || lower.includes('view') || lower.includes('widget')) return 'ui';
-  if (lower.includes('controller')) return 'controller';
-  if (lower.includes('service')) return 'service';
-  if (lower.includes('repository') || lower.includes('repo')) return 'repository';
-  if (lower.includes('model') || lower.includes('entity')) return 'model';
-  if (lower.includes('api') || lower.includes('endpoint') || lower.includes('route')) return 'api';
-  if (lower.includes('sdk') || lower.includes('client')) return 'sdk';
-  return 'unknown';
-}
-
 function buildPromptOnlyFlow(prompt: string): { nodes: RawNode[]; edges: RawEdge[] } {
   const lower = prompt.toLowerCase();
   const authLike = /auth|login|register|token|credential|otentikasi|autentikasi|daftar|masuk/.test(lower);
@@ -292,15 +290,15 @@ function buildPromptOnlyFlow(prompt: string): { nodes: RawNode[]; edges: RawEdge
 
   if (authLike || notesLike) {
     const nodes: RawNode[] = [
-      { id: 'user', label: 'User', type: 'external', description: 'Actor that starts the flow.' },
-      { id: 'register_screen', label: 'Register Screen', type: 'ui', description: 'Collects new account data.' },
-      { id: 'login_screen', label: 'Login Screen', type: 'ui', description: 'Collects credentials.' },
-      { id: 'auth_api', label: 'Auth API', type: 'api', description: 'Handles register, login, and token validation.' },
-      { id: 'auth_service', label: 'Auth Service', type: 'service', description: 'Hashes passwords and issues tokens.' },
-      { id: 'database', label: 'Database', type: 'repository', description: 'Stores users and notes.' },
-      { id: 'notes_list', label: 'Notes List', type: 'ui', description: 'Shows notes for the authenticated user.' },
-      { id: 'create_note', label: 'Create Note', type: 'ui', description: 'Submits a new note.' },
-      { id: 'notes_api', label: 'Notes API', type: 'api', description: 'Reads and writes notes with Bearer token auth.' },
+      conceptualNode(prompt, 'user', 'User', 'external', 'Actor that starts the flow.'),
+      conceptualNode(prompt, 'register_screen', 'Register Screen', 'ui', 'Collects new account data.'),
+      conceptualNode(prompt, 'login_screen', 'Login Screen', 'ui', 'Collects credentials.'),
+      conceptualNode(prompt, 'auth_api', 'Auth API', 'api', 'Handles register, login, and token validation.'),
+      conceptualNode(prompt, 'auth_service', 'Auth Service', 'service', 'Hashes passwords and issues tokens.'),
+      conceptualNode(prompt, 'database', 'Database', 'repository', 'Stores users and notes.'),
+      conceptualNode(prompt, 'notes_list', 'Notes List', 'ui', 'Shows notes for the authenticated user.'),
+      conceptualNode(prompt, 'create_note', 'Create Note', 'ui', 'Submits a new note.'),
+      conceptualNode(prompt, 'notes_api', 'Notes API', 'api', 'Reads and writes notes with Bearer token auth.'),
     ];
 
     const edges: RawEdge[] = [
@@ -323,11 +321,11 @@ function buildPromptOnlyFlow(prompt: string): { nodes: RawNode[]; edges: RawEdge
 
   return {
     nodes: [
-      { id: 'user', label: 'User', type: 'external', description: 'Actor that starts the requested flow.' },
-      { id: 'client_ui', label: 'Client UI', type: 'ui', description: 'Collects input and shows results.' },
-      { id: 'backend_api', label: 'Backend API', type: 'api', description: 'Receives the client request.' },
-      { id: 'service_layer', label: 'Service Layer', type: 'service', description: 'Applies business rules.' },
-      { id: 'data_store', label: 'Data Store', type: 'repository', description: 'Persists and retrieves data.' },
+      conceptualNode(prompt, 'user', 'User', 'external', 'Actor that starts the requested flow.'),
+      conceptualNode(prompt, 'client_ui', 'Client UI', 'ui', 'Collects input and shows results.'),
+      conceptualNode(prompt, 'backend_api', 'Backend API', 'api', 'Receives the client request.'),
+      conceptualNode(prompt, 'service_layer', 'Service Layer', 'service', 'Applies business rules.'),
+      conceptualNode(prompt, 'data_store', 'Data Store', 'repository', 'Persists and retrieves data.'),
     ],
     edges: [
       { from: 'user', to: 'client_ui', label: 'Start' },
@@ -337,6 +335,47 @@ function buildPromptOnlyFlow(prompt: string): { nodes: RawNode[]; edges: RawEdge
       { from: 'service_layer', to: 'client_ui', label: 'Response' },
     ],
   };
+}
+
+function conceptualNode(
+  prompt: string,
+  id: string,
+  label: string,
+  type: string,
+  description: string
+): RawNode {
+  const reason = 'Conceptual node derived from prompt because no matching source file was found.';
+  return {
+    id,
+    label,
+    type,
+    file: undefined,
+    lineStart: undefined,
+    lineEnd: undefined,
+    description,
+    reason,
+    confidence: 0.35,
+    evidence: conceptualEvidence(prompt, reason),
+  };
+}
+
+function enrichEdges(edges: RawEdge[], nodes: RawNode[], sourceBacked: boolean): RawEdge[] {
+  return edges.map((edge) => {
+    const fromNode = nodes.find((node) => node.id === edge.from);
+    const toNode = nodes.find((node) => node.id === edge.to);
+    const meta = relationshipEvidence(
+      fromNode?.label ?? edge.from,
+      toNode?.label ?? edge.to,
+      edge.label,
+      sourceBacked
+    );
+    return {
+      ...edge,
+      reason: edge.reason ?? meta.reason,
+      confidence: edge.confidence ?? meta.confidence,
+      evidence: edge.evidence ?? meta.evidence,
+    };
+  });
 }
 
 function shouldBuildProductFlow(prompt: string): boolean {

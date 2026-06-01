@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { generateFlowHandler } from './generateFlowTool';
+import { getNodeDetailHandler, getRelationshipDetailHandler } from './detailTools';
 import { getWorkspacePath } from '../extension';
 
 /** Create and configure the MCP server */
@@ -28,6 +29,52 @@ export function createMcpServer(): McpServer {
     async ({ prompt }) => {
       const workspacePath = getWorkspacePath();
       const result = await generateFlowHandler({ prompt }, workspacePath);
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'get_node_detail',
+    'Return source metadata, relationships, evidence, and optional code snippet for a node in a saved Flow Pilot flow.',
+    {
+      flowId: z.string().min(1).describe('Flow id returned by generate_flow.'),
+      nodeId: z.string().min(1).describe('Node id from the generated flow.'),
+      includeCodeSnippet: z.boolean().optional().describe('Whether to include the source code snippet. Defaults to true.'),
+    },
+    async ({ flowId, nodeId, includeCodeSnippet }) => {
+      const workspacePath = getWorkspacePath();
+      const result = getNodeDetailHandler({ flowId, nodeId, includeCodeSnippet }, workspacePath);
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'get_relationship_detail',
+    'Return evidence and endpoint context for a relationship between two nodes in a saved Flow Pilot flow.',
+    {
+      flowId: z.string().min(1).describe('Flow id returned by generate_flow.'),
+      from: z.string().min(1).describe('Source node id.'),
+      to: z.string().min(1).describe('Target node id.'),
+    },
+    async ({ flowId, from, to }) => {
+      const workspacePath = getWorkspacePath();
+      const result = getRelationshipDetailHandler({ flowId, from, to }, workspacePath);
 
       return {
         content: [

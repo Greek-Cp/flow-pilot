@@ -24,15 +24,51 @@ function sanitizeId(id: string): string {
   return /^[a-zA-Z_]/.test(clean) ? clean : `n_${clean}`;
 }
 
+/** Icon per node type so readers can distinguish screens/APIs/services/data stores. */
+function nodeEmoji(type: string): string {
+  switch (type) {
+    case 'external': return '👤';
+    case 'ui': return '🖥️';
+    case 'api': return '🔌';
+    case 'controller': return '🎮';
+    case 'service': return '⚙️';
+    case 'sdk': return '🧩';
+    case 'repository':
+    case 'datasource': return '🗄️';
+    case 'model': return '📦';
+    case 'function':
+    case 'method': return '🔧';
+    case 'class': return '🏛️';
+    default: return '📄';
+  }
+}
+
+/** Type-specific Mermaid shape so each node category is visually distinct. */
+function flowchartNodeDecl(id: string, type: string, label: string): string {
+  const text = `${nodeEmoji(type)} ${label}`.trim();
+  switch (type) {
+    case 'external': return `${id}(["${text}"])`;      // stadium — user/actor
+    case 'ui': return `${id}[/"${text}"/]`;             // parallelogram — screen/page
+    case 'api':
+    case 'controller': return `${id}{{"${text}"}}`;     // hexagon — API/endpoint
+    case 'service':
+    case 'sdk': return `${id}[["${text}"]]`;            // subroutine — service/logic
+    case 'repository':
+    case 'datasource': return `${id}[("${text}")]`;     // cylinder — data store
+    case 'model': return `${id}("${text}")`;            // rounded — model/data
+    default: return `${id}["${text}"]`;                 // rectangle — code/file
+  }
+}
+
 /** Build a Mermaid flowchart from nodes and edges */
 export function buildMermaidFlowchart(nodes: Node[], edges: Edge[]): string {
   const lines: string[] = ['flowchart TD'];
 
-  // Add nodes
+  // Add nodes with a type-specific shape + icon
   for (const node of nodes) {
     const id = sanitizeId(node.id);
     const label = sanitizeLabel(node.label);
-    lines.push(`    ${id}["${label}"]`);
+    lines.push(`    ${flowchartNodeDecl(id, node.type, label)}`);
   }
 
   // Add edges
@@ -54,13 +90,12 @@ export function buildMermaidFlowchart(nodes: Node[], edges: Edge[]): string {
 export function buildMermaidSequence(nodes: Node[], edges: Edge[]): string {
   const lines: string[] = ['sequenceDiagram'];
 
-  // Add participants
+  // Add participants with a type icon (stick-figure actor only for external users)
   for (const node of nodes) {
     const id = sanitizeId(node.id);
     const label = sanitizeLabel(node.label);
-    // Use "actor" for UI nodes, "participant" for others
-    const keyword = node.type === 'ui' ? 'actor' : 'participant';
-    lines.push(`    ${keyword} ${id} as ${label}`);
+    const keyword = node.type === 'external' ? 'actor' : 'participant';
+    lines.push(`    ${keyword} ${id} as ${nodeEmoji(node.type)} ${label}`);
   }
 
   // Add messages (edges)

@@ -11,6 +11,12 @@ import { z } from 'zod';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
+import {
+  buildSourceMetadata,
+  conceptualEvidence,
+  relationshipEvidence,
+} from './flowMetadata';
+import { getNodeDetailHandler, getRelationshipDetailHandler } from './detailTools';
 
 const configuredWorkspacePath = process.argv[2];
 const fallbackWorkspacePath = configuredWorkspacePath && !configuredWorkspacePath.includes('${workspaceFolder}')
@@ -210,18 +216,6 @@ function scanWorkspaceSync(prompt: string, wsPath: string): ScannedFile[] {
 
 import * as crypto from 'crypto';
 
-function guessType(fp: string): string {
-  const l = fp.toLowerCase();
-  if (l.includes('screen') || l.includes('page') || l.includes('view') || l.includes('widget')) return 'ui';
-  if (l.includes('controller')) return 'controller';
-  if (l.includes('service')) return 'service';
-  if (l.includes('repository') || l.includes('repo')) return 'repository';
-  if (l.includes('model') || l.includes('entity')) return 'model';
-  if (l.includes('api') || l.includes('endpoint') || l.includes('route')) return 'api';
-  if (l.includes('sdk') || l.includes('client')) return 'sdk';
-  return 'unknown';
-}
-
 function sanitizeId(id: string): string {
   const clean = id.replace(/[^a-zA-Z0-9_]/g, '_');
   return /^[a-zA-Z_]/.test(clean) ? clean : `n_${clean}`;
@@ -238,10 +232,46 @@ function sanitizeLabel(l: string): string {
   return clean || 'Node';
 }
 
+// Icon per node type so readers can tell screens/APIs/services/data stores apart.
+function nodeEmoji(type: string): string {
+  switch (type) {
+    case 'external': return '👤';
+    case 'ui': return '🖥️';
+    case 'api': return '🔌';
+    case 'controller': return '🎮';
+    case 'service': return '⚙️';
+    case 'sdk': return '🧩';
+    case 'repository':
+    case 'datasource': return '🗄️';
+    case 'model': return '📦';
+    case 'function':
+    case 'method': return '🔧';
+    case 'class': return '🏛️';
+    default: return '📄';
+  }
+}
+
+// Type-specific Mermaid shape so each node category is visually distinct.
+function flowchartNodeDecl(id: string, type: string, label: string): string {
+  const text = `${nodeEmoji(type)} ${label}`.trim();
+  switch (type) {
+    case 'external': return `${id}(["${text}"])`;      // stadium — user/actor
+    case 'ui': return `${id}[/"${text}"/]`;             // parallelogram — screen/page
+    case 'api':
+    case 'controller': return `${id}{{"${text}"}}`;     // hexagon — API/endpoint
+    case 'service':
+    case 'sdk': return `${id}[["${text}"]]`;            // subroutine — service/logic
+    case 'repository':
+    case 'datasource': return `${id}[("${text}")]`;     // cylinder — data store
+    case 'model': return `${id}("${text}")`;            // rounded — model/data
+    default: return `${id}["${text}"]`;                 // rectangle — code/file
+  }
+}
+
 function buildMermaidFlowchart(nodes: any[], edges: any[]): string {
   const lines = ['flowchart TD'];
   for (const n of nodes) {
-    lines.push(`    ${sanitizeId(n.id)}["${sanitizeLabel(n.label)}"]`);
+    lines.push(`    ${flowchartNodeDecl(sanitizeId(n.id), n.type, sanitizeLabel(n.label))}`);
   }
   for (const e of edges) {
     if (e.label) lines.push(`    ${sanitizeId(e.from)} -->|"${sanitizeLabel(e.label)}"| ${sanitizeId(e.to)}`);
@@ -253,13 +283,50 @@ function buildMermaidFlowchart(nodes: any[], edges: any[]): string {
 function buildMermaidSequence(nodes: any[], edges: any[]): string {
   const lines = ['sequenceDiagram'];
   for (const n of nodes) {
-    const kw = n.type === 'ui' ? 'actor' : 'participant';
-    lines.push(`    ${kw} ${sanitizeId(n.id)} as ${sanitizeLabel(n.label)}`);
+    const kw = n.type === 'external' ? 'actor' : 'participant';
+    lines.push(`    ${kw} ${sanitizeId(n.id)} as ${nodeEmoji(n.type)} ${sanitizeLabel(n.label)}`);
   }
   for (const e of edges) {
     lines.push(`    ${sanitizeId(e.from)}->>${sanitizeId(e.to)}: ${e.label ? sanitizeLabel(e.label) : 'calls'}`);
   }
   return lines.join('\n');
+}
+
+const LEGEND_MEANING: Record<string, string> = {
+  external: 'User / actor that starts the flow',
+  ui: 'Screen / page (halaman) in the app',
+  api: 'API endpoint',
+  controller: 'Controller / request handler',
+  service: 'Service / business logic',
+  sdk: 'SDK / client library',
+  repository: 'Repository / data access',
+  datasource: 'Data source / database',
+  model: 'Data model / entity',
+  function: 'Function',
+  method: 'Method',
+  class: 'Class',
+};
+
+// Legend covers only the node types present so AI clients can explain the icons.
+function buildLegend(nodes: any[]): Array<{ type: string; icon: string; meaning: string }> {
+  const seen = new Set<string>();
+  const legend: Array<{ type: string; icon: string; meaning: string }> = [];
+  for (const n of nodes) {
+    if (seen.has(n.type)) continue;
+    seen.add(n.type);
+    legend.push({
+      type: n.type,
+      icon: nodeEmoji(n.type),
+      meaning: LEGEND_MEANING[n.type] || 'Code module / file',
+    });
+  }
+  return legend;
+}
+
+function buildReadingGuide(nodes: any[]): string {
+  const screens = nodes.filter((n) => n.type === 'ui').map((n) => n.label);
+  const screenText = screens.length ? ` Screens/pages (halaman): ${screens.join(', ')}.` : '';
+  return `Follow the arrows from the top to read the flow order. Each node's icon marks its type (see legend): 👤 user, 🖥️ screen/page, 🔌 API, ⚙️ service, 🗄️ database, 📦 model, 📄 code/file.${screenText}`;
 }
 
 function buildTitle(prompt: string): string {
@@ -330,6 +397,37 @@ function shouldBuildProductFlow(prompt: string): boolean {
   return /flow produk|bukan dependency|bukan dependensi|bukan sekadar|fitur otentikasi|auth.*note|login.*note|register.*note|catatan/.test(lower);
 }
 
+function enrichConceptualNodes(nodes: any[], prompt: string): any[] {
+  return nodes.map((node) => {
+    const reason = node.reason || 'Conceptual node derived from prompt because no matching source file was found.';
+    return {
+      ...node,
+      reason,
+      confidence: node.confidence ?? 0.35,
+      evidence: node.evidence ?? conceptualEvidence(prompt, reason),
+    };
+  });
+}
+
+function enrichRelationshipEdges(edges: any[], nodes: any[], sourceBacked: boolean): any[] {
+  return edges.map((edge) => {
+    const fromNode = nodes.find((node) => node.id === edge.from);
+    const toNode = nodes.find((node) => node.id === edge.to);
+    const meta = relationshipEvidence(
+      fromNode?.label ?? edge.from,
+      toNode?.label ?? edge.to,
+      edge.label,
+      sourceBacked
+    );
+    return {
+      ...edge,
+      reason: edge.reason ?? meta.reason,
+      confidence: edge.confidence ?? meta.confidence,
+      evidence: edge.evidence ?? meta.evidence,
+    };
+  });
+}
+
 // ── Create MCP Server ──
 
 const server = new McpServer({ name: 'flow-pilot', version: '0.1.0' });
@@ -362,25 +460,37 @@ server.tool(
 
     // 2. Scan
     const isProductFlow = shouldBuildProductFlow(prompt);
-    const files = isProductFlow ? [] : scanWorkspaceSync(prompt, workspacePath);
+    const files = scanWorkspaceSync(prompt, workspacePath);
     const isPromptOnlyFlow = files.length === 0;
-    const flowStatus = isPromptOnlyFlow && !isProductFlow ? 'partial' : 'success';
+    const flowStatus = isPromptOnlyFlow ? 'partial' : 'success';
 
     // 3. Build nodes from files
     const fallback = isPromptOnlyFlow ? buildPromptOnlyFlow(prompt) : null;
-    const nodes = fallback?.nodes ?? files.slice(0, 50).map((f, i) => ({
-      id: `file_${i}`,
-      label: f.path.split('/').pop() || f.path,
-      type: guessType(f.path),
-      file: f.path,
-      lineStart: 1,
-      lineEnd: Math.min(50, f.content.split('\n').length),
-      description: f.reason,
-    }));
+    const nodes = fallback
+      ? enrichConceptualNodes(fallback.nodes, prompt)
+      : files.slice(0, 50).map((f, i) => {
+        const metadata = buildSourceMetadata(f);
+        return {
+          id: `file_${i}`,
+          label: metadata.symbolName || f.path.split('/').pop() || f.path,
+          type: metadata.type,
+          file: f.path,
+          lineStart: metadata.lineStart,
+          lineEnd: metadata.lineEnd,
+          description: metadata.description,
+          symbolName: metadata.symbolName,
+          reason: metadata.reason,
+          confidence: metadata.confidence,
+          evidence: metadata.evidence,
+        };
+      });
 
-    const edges = fallback?.edges ?? [];
+    const edges = fallback ? enrichRelationshipEdges(fallback.edges, nodes, false) : [];
     if (!fallback) {
-      for (let i = 0; i < nodes.length - 1; i++) edges.push({ from: nodes[i].id, to: nodes[i + 1].id });
+      for (let i = 0; i < nodes.length - 1; i++) {
+        const meta = relationshipEvidence(nodes[i].label, nodes[i + 1].label, undefined, true);
+        edges.push({ from: nodes[i].id, to: nodes[i + 1].id, ...meta });
+      }
     }
 
     // 4. Build Mermaid
@@ -391,6 +501,8 @@ server.tool(
     const flowId = crypto.randomUUID();
     const now = new Date().toISOString();
     const title = buildTitle(prompt);
+    const legend = buildLegend(nodes);
+    const readingGuide = buildReadingGuide(nodes);
 
     const flow = {
       id: flowId,
@@ -402,13 +514,17 @@ server.tool(
       updatedAt: now,
       diagramTypes: ['flowchart', 'sequence'],
       nodes, edges,
+      legend,
+      readingGuide,
       sourceFiles: files.map(f => ({ path: f.path, reason: f.reason })),
       diagrams: [
         { type: 'flowchart', mermaidSource: fcMermaid },
         { type: 'sequence', mermaidSource: sqMermaid },
       ],
-      warnings: isPromptOnlyFlow && !isProductFlow
-        ? ['No matching source files were found, so Flow Pilot generated a prompt-only flow.']
+      warnings: isPromptOnlyFlow
+        ? isProductFlow
+          ? ['No matching source files were found, so Flow Pilot generated a conceptual prompt-only flow.']
+          : ['No matching source files were found, so Flow Pilot generated a prompt-only flow.']
         : undefined,
     };
 
@@ -470,7 +586,7 @@ server.tool(
       status: flow.status,
       summary: isPromptOnlyFlow
         ? isProductFlow
-          ? `Generated conceptual flow with ${nodes.length} nodes.`
+          ? `Generated conceptual prompt-only flow with ${nodes.length} nodes because no matching source files were found.`
           : `Generated prompt-only flow with ${nodes.length} nodes because no matching source files were found.`
         : `Generated flow from ${files.length} files with ${nodes.length} nodes.`,
       historySaved: true,
@@ -478,12 +594,59 @@ server.tool(
       edgeCount: edges.length,
       sourceFileCount: files.length,
       diagramTypes: ['flowchart', 'sequence'],
+      legend,
+      readingGuide,
+      warnings: flow.warnings,
       workspacePath,
       historyPath: historyFile,
       flowPath,
       flow,
       historyEntry,
     };
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify(response),
+      }],
+      structuredContent: response,
+    };
+  }
+);
+
+server.tool(
+  'get_node_detail',
+  'Return source metadata, relationships, evidence, and optional code snippet for a node in a saved Flow Pilot flow.',
+  {
+    flowId: z.string().min(1).describe('Flow id returned by generate_flow.'),
+    nodeId: z.string().min(1).describe('Node id from the generated flow.'),
+    includeCodeSnippet: z.boolean().optional().describe('Whether to include the source code snippet. Defaults to true.'),
+  },
+  async ({ flowId, nodeId, includeCodeSnippet }) => {
+    const workspacePath = await resolveWorkspacePath();
+    const response = getNodeDetailHandler({ flowId, nodeId, includeCodeSnippet }, workspacePath);
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify(response),
+      }],
+      structuredContent: response,
+    };
+  }
+);
+
+server.tool(
+  'get_relationship_detail',
+  'Return evidence and endpoint context for a relationship between two nodes in a saved Flow Pilot flow.',
+  {
+    flowId: z.string().min(1).describe('Flow id returned by generate_flow.'),
+    from: z.string().min(1).describe('Source node id.'),
+    to: z.string().min(1).describe('Target node id.'),
+  },
+  async ({ flowId, from, to }) => {
+    const workspacePath = await resolveWorkspacePath();
+    const response = getRelationshipDetailHandler({ flowId, from, to }, workspacePath);
 
     return {
       content: [{

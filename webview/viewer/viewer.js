@@ -45,6 +45,7 @@
   // Elements
   const diagramContainer = document.getElementById('diagram-container');
   const diagramDiv = document.getElementById('diagram');
+  const legendEl = document.getElementById('legend');
   const inspectorContent = document.getElementById('inspector-content');
   const inspectorPanel = document.getElementById('inspector');
   const resizeHandle = document.getElementById('inspector-resize-handle');
@@ -87,6 +88,7 @@
       case 'flowLoaded':
         flowData = msg.payload;
         currentDiagramType = flowData.diagramTypes[0] || 'flowchart';
+        renderLegend();
         renderDiagram();
         updateInspectorPlaceholder();
         break;
@@ -207,15 +209,19 @@
 
     const candidates = new Set([
       ...svg.querySelectorAll('g.node'),
-      ...svg.querySelectorAll('g.actor'),
       ...svg.querySelectorAll('g[class*="node"]'),
+      // Sequence diagrams: Mermaid renders actors/participants as rect.actor /
+      // text.actor carrying a `name` attribute (the node id), NOT as g.node.
+      ...svg.querySelectorAll('.actor'),
+      ...svg.querySelectorAll('[name]'),
       ...svg.querySelectorAll('g[class*="actor"]'),
       ...svg.querySelectorAll('g[class*="participant"]'),
     ]);
 
     let mappedCount = 0;
     candidates.forEach((group) => {
-      const renderedId = group.getAttribute('data-id') || group.id || '';
+      const renderedId =
+        group.getAttribute('name') || group.getAttribute('data-id') || group.id || '';
       const labelText = normalizeText(group.textContent || '');
       const nodeId = resolveFlowNodeId(renderedId, labelText);
       if (!nodeId) return;
@@ -223,7 +229,7 @@
 
       const node = flowData.nodes.find((item) => item.id === nodeId);
       group.setAttribute('data-id', nodeId);
-      group.classList.add('node', 'mermaid-clickable-node');
+      group.classList.add('mermaid-clickable-node');
       group.setAttribute('role', 'button');
       group.setAttribute('tabindex', '0');
       group.setAttribute(
@@ -480,6 +486,36 @@
         '</div>';
     }
 
+    // SYMBOL
+    if (nodeData.symbolName) {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Symbol</span>' +
+        '<span class="inspector-value inspector-value-strong">' + esc(nodeData.symbolName) + '</span>' +
+        '</div>';
+    }
+
+    // REASON
+    if (nodeData.reason) {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Reason</span>' +
+        '<span class="inspector-value">' + esc(nodeData.reason) + '</span>' +
+        '</div>';
+    }
+
+    // CONFIDENCE
+    if (typeof nodeData.confidence === 'number') {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Confidence</span>' +
+        '<span class="inspector-confidence ' + getConfidenceClass(nodeData.confidence) + '">' +
+        Math.round(nodeData.confidence * 100) + '%</span>' +
+        '</div>';
+    }
+
+    // EVIDENCE
+    if (Array.isArray(nodeData.evidence) && nodeData.evidence.length > 0) {
+      html += renderEvidence(nodeData.evidence);
+    }
+
     // INCOMING
     if (incoming.length > 0) {
       html += '<div class="inspector-section">' +
@@ -537,6 +573,48 @@
     }
   }
 
+  // ─── Legend (maps node-type icons to meanings for types present) ───
+
+  const LEGEND_ITEMS = [
+    { type: 'external', icon: '👤', label: 'User / Actor' },
+    { type: 'ui', icon: '🖥️', label: 'Screen / Page' },
+    { type: 'api', icon: '🔌', label: 'API Endpoint' },
+    { type: 'controller', icon: '🎮', label: 'Controller' },
+    { type: 'service', icon: '⚙️', label: 'Service / Logic' },
+    { type: 'sdk', icon: '🧩', label: 'SDK / Client' },
+    { type: 'repository', icon: '🗄️', label: 'Repository' },
+    { type: 'datasource', icon: '🗄️', label: 'Data Source' },
+    { type: 'model', icon: '📦', label: 'Model / Data' },
+    { type: 'function', icon: '🔧', label: 'Function' },
+    { type: 'method', icon: '🔧', label: 'Method' },
+    { type: 'class', icon: '🏛️', label: 'Class' },
+  ];
+
+  function renderLegend() {
+    if (!legendEl) return;
+    if (!flowData || !Array.isArray(flowData.nodes) || flowData.nodes.length === 0) {
+      legendEl.innerHTML = '';
+      return;
+    }
+    const present = new Set(flowData.nodes.map((n) => n.type));
+    const items = LEGEND_ITEMS.filter((item) => present.has(item.type));
+    // Any node type not in the known list falls back to the code/file icon.
+    const known = new Set(LEGEND_ITEMS.map((item) => item.type));
+    if ([...present].some((t) => !known.has(t))) {
+      items.push({ type: 'file', icon: '📄', label: 'Code / File' });
+    }
+    legendEl.innerHTML = items
+      .map(
+        (item) =>
+          '<span class="legend-item"><span class="legend-icon">' +
+          item.icon +
+          '</span>' +
+          esc(item.label) +
+          '</span>'
+      )
+      .join('');
+  }
+
   function updateInspectorPlaceholder() {
     if (inspectorContent) {
       inspectorContent.innerHTML = '<div class="inspector-placeholder"><p>Click a node to inspect</p></div>';
@@ -548,7 +626,7 @@
     if (!inspectorContent || !detail) return;
 
     // If we already have the node displayed, just append code snippet if available
-    if (detail.codeSnippet && selectedNodeId === detail.nodeId) {
+    if (detail.codeSnippet && selectedNodeId === detail.nodeId && !inspectorContent.querySelector('.code-snippet')) {
       const existing = inspectorContent.querySelector('.inspector-actions');
       if (existing) {
         const snippetHtml = '<div class="inspector-field">' +
@@ -558,6 +636,22 @@
         existing.insertAdjacentHTML('beforebegin', snippetHtml);
       }
     }
+  }
+
+  function renderEvidence(evidence) {
+    let html = '<div class="inspector-section">' +
+      '<span class="inspector-section-title">Evidence (' + evidence.length + ')</span>';
+    for (const item of evidence) {
+      const location = item.file
+        ? item.file + (item.lineStart ? ':' + item.lineStart + (item.lineEnd ? '-' + item.lineEnd : '') : '')
+        : item.kind;
+      html += '<div class="inspector-evidence">' +
+        '<span class="inspector-evidence-path">' + esc(location) + '</span>' +
+        '<span class="inspector-evidence-reason">' + esc(item.reason || item.snippet || '') + '</span>' +
+        '</div>';
+    }
+    html += '</div>';
+    return html;
   }
 
   function getConfidenceClass(c) {
@@ -635,26 +729,91 @@
     zoomLevel.textContent = `${Math.round(scale * 100)}%`;
   }
 
-  function setZoom(newScale) {
-    scale = Math.max(0.25, Math.min(3.0, newScale));
+  function clampScale(value) {
+    return Math.max(0.25, Math.min(3.0, value));
+  }
+
+  function getViewportCenterPoint() {
+    const rect = diagramContainer.getBoundingClientRect();
+    return { x: rect.width / 2, y: rect.height / 2 };
+  }
+
+  function getContainerPoint(clientX, clientY) {
+    const rect = diagramContainer.getBoundingClientRect();
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  }
+
+  function setZoom(newScale, focusPoint) {
+    const nextScale = clampScale(newScale);
+    const focus = focusPoint || getViewportCenterPoint();
+    const diagramX = (focus.x - translateX) / scale;
+    const diagramY = (focus.y - translateY) / scale;
+
+    scale = nextScale;
+    translateX = focus.x - diagramX * scale;
+    translateY = focus.y - diagramY * scale;
     applyTransform();
   }
 
-  zoomInBtn.addEventListener('click', () => setZoom(scale + 0.1));
-  zoomOutBtn.addEventListener('click', () => setZoom(scale - 0.1));
+  function getNormalizedWheelDelta(e) {
+    const multiplier = e.deltaMode === 1
+      ? 16
+      : e.deltaMode === 2
+      ? Math.max(1, diagramContainer.clientHeight)
+      : 1;
+    return {
+      x: e.deltaX * multiplier,
+      y: e.deltaY * multiplier,
+    };
+  }
 
-  zoomFitBtn.addEventListener('click', () => {
-    const container = diagramContainer.getBoundingClientRect();
-    const diagram = diagramDiv.getBoundingClientRect();
-    if (diagram.width > 0 && diagram.height > 0) {
-      const scaleX = (container.width - 48) / diagram.width;
-      const scaleY = (container.height - 48) / diagram.height;
-      scale = Math.min(scaleX, scaleY, 1.0);
+  function getSvgLocalBounds() {
+    const svg = diagramDiv.querySelector('svg');
+    if (!svg) return null;
+    const svgRect = svg.getBoundingClientRect();
+    const divRect = diagramDiv.getBoundingClientRect();
+    if (svgRect.width <= 0 || svgRect.height <= 0 || scale <= 0) return null;
+
+    return {
+      x: (svgRect.left - divRect.left) / scale,
+      y: (svgRect.top - divRect.top) / scale,
+      width: svgRect.width / scale,
+      height: svgRect.height / scale,
+    };
+  }
+
+  function centerSvgAtCurrentScale(svgBounds) {
+    const bounds = svgBounds || getSvgLocalBounds();
+    if (!bounds) {
       translateX = 0;
       translateY = 0;
-      applyTransform();
+      return;
     }
-  });
+
+    const container = diagramContainer.getBoundingClientRect();
+    translateX = container.width / 2 - (bounds.x + bounds.width / 2) * scale;
+    translateY = container.height / 2 - (bounds.y + bounds.height / 2) * scale;
+  }
+
+  function fitDiagramToViewport() {
+    const bounds = getSvgLocalBounds();
+    if (!bounds) return;
+
+    const container = diagramContainer.getBoundingClientRect();
+    const padding = 48;
+    const scaleX = (container.width - padding) / bounds.width;
+    const scaleY = (container.height - padding) / bounds.height;
+    scale = clampScale(Math.min(scaleX, scaleY, 1.0));
+    centerSvgAtCurrentScale(bounds);
+    applyTransform();
+  }
+
+  zoomInBtn.addEventListener('click', () => setZoom(scale * 1.15));
+  zoomOutBtn.addEventListener('click', () => setZoom(scale / 1.15));
+  zoomFitBtn.addEventListener('click', fitDiagramToViewport);
 
   zoomResetBtn.addEventListener('click', () => {
     scale = 1.0;
@@ -665,8 +824,20 @@
 
   diagramContainer.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.05 : 0.05;
-    setZoom(scale + delta);
+    const delta = getNormalizedWheelDelta(e);
+    const isZoomGesture = e.ctrlKey || e.metaKey;
+
+    if (isZoomGesture) {
+      const focus = getContainerPoint(e.clientX, e.clientY);
+      const zoomFactor = Math.exp(-delta.y * 0.0015);
+      setZoom(scale * zoomFactor, focus);
+      return;
+    }
+
+    const panX = e.shiftKey && Math.abs(delta.x) < 1 ? delta.y : delta.x;
+    translateX -= panX;
+    translateY -= delta.y;
+    applyTransform();
   }, { passive: false });
 
   // Pan with mouse drag (NO setPointerCapture — allows SVG node clicks to work)

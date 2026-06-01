@@ -5,10 +5,16 @@
 
 /** Allowed node type categories */
 export type NodeType =
+  | 'file'
+  | 'function'
+  | 'class'
+  | 'method'
+  | 'module'
   | 'ui'
   | 'controller'
   | 'service'
   | 'repository'
+  | 'datasource'
   | 'model'
   | 'api'
   | 'sdk'
@@ -20,6 +26,33 @@ export type FlowStatus = 'success' | 'failed' | 'partial';
 
 /** Diagram type */
 export type DiagramType = 'flowchart' | 'sequence';
+
+/** Evidence category for source-backed or conceptual flow analysis */
+export type EvidenceKind =
+  | 'file'
+  | 'symbol'
+  | 'snippet'
+  | 'filename'
+  | 'prompt'
+  | 'relationship';
+
+/** Evidence explaining why a node or edge belongs in the flow */
+export interface Evidence {
+  /** Evidence category */
+  kind: EvidenceKind;
+  /** Relative path from workspace root, when source-backed */
+  file?: string;
+  /** 1-based start line, when available */
+  lineStart?: number;
+  /** 1-based end line, when available */
+  lineEnd?: number;
+  /** Symbol/function/class/method name, when available */
+  symbolName?: string;
+  /** Short source excerpt, when useful */
+  snippet?: string;
+  /** Human-readable reason this evidence supports the flow element */
+  reason: string;
+}
 
 /** Represents a code element in the flow */
 export interface Node {
@@ -37,6 +70,14 @@ export interface Node {
   lineEnd: number | null;
   /** Brief description of what this code element does */
   description?: string;
+  /** Symbol/function/class/method name when known */
+  symbolName?: string;
+  /** Why this node was included in the flow */
+  reason?: string;
+  /** Confidence score from 0 to 1 */
+  confidence?: number;
+  /** Evidence backing this node */
+  evidence?: Evidence[];
 }
 
 /** Represents a directional relationship between two nodes */
@@ -47,6 +88,12 @@ export interface Edge {
   to: string;
   /** Description of the relationship */
   label?: string;
+  /** Why this relationship was included in the flow */
+  reason?: string;
+  /** Confidence score from 0 to 1 */
+  confidence?: number;
+  /** Evidence backing this relationship */
+  evidence?: Evidence[];
 }
 
 /** A file that was analyzed during flow generation */

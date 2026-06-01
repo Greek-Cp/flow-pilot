@@ -154,6 +154,38 @@ body {
 }
 
 /* ============================================================================
+   Legend (node-type key)
+   ============================================================================ */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  padding: var(--fp-spacing-xs) 12px;
+  border-bottom: 1px solid var(--fp-border, var(--vscode-panel-border));
+  font-size: var(--fp-font-size-xs);
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  flex-shrink: 0;
+}
+
+.legend:empty {
+  display: none;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.legend-icon {
+  font-size: var(--fp-font-size-md);
+  line-height: 1;
+}
+
+/* ============================================================================
    Content Area
    ============================================================================ */
 

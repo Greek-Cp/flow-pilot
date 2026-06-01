@@ -94,6 +94,7 @@ export function getFlowViewerHtml(
       <button class="tab-btn active" data-type="flowchart">Flowchart</button>
       <button class="tab-btn" data-type="sequence">Sequence</button>
     </div>
+    <div id="legend" class="legend" aria-label="Diagram legend"></div>
     <div class="content">
       <div class="diagram-container" id="diagram-container">
         <div id="diagram" class="diagram"></div>

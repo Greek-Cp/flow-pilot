@@ -4,7 +4,7 @@
  */
 
 import * as crypto from 'crypto';
-import type { Flow, Node, Edge, Diagram, SourceFile, DiagramType } from '../types/flow';
+import type { Flow, Node, Edge, Diagram, SourceFile, DiagramType, Evidence, NodeType } from '../types/flow';
 import type { HistoryEntry } from '../types/history';
 import { validateFlow } from '../storage/validation';
 
@@ -18,12 +18,19 @@ export interface RawNode {
   lineStart?: number;
   lineEnd?: number;
   description?: string;
+  symbolName?: string;
+  reason?: string;
+  confidence?: number;
+  evidence?: Evidence[];
 }
 
 export interface RawEdge {
   from: string;
   to: string;
   label?: string;
+  reason?: string;
+  confidence?: number;
+  evidence?: Evidence[];
 }
 
 export type FlowBuildResult = {
@@ -59,11 +66,15 @@ export function buildFlow(
   const nodes: Node[] = rawNodes.map((raw) => ({
     id: raw.id,
     label: raw.label,
-    type: (raw.type as Node['type']) || 'unknown',
+    type: normalizeNodeType(raw.type),
     file: raw.file || null,
     lineStart: raw.lineStart || null,
     lineEnd: raw.lineEnd || null,
     description: raw.description,
+    symbolName: raw.symbolName,
+    reason: raw.reason,
+    confidence: raw.confidence,
+    evidence: raw.evidence,
   }));
 
   // Build edges
@@ -71,6 +82,9 @@ export function buildFlow(
     from: raw.from,
     to: raw.to,
     label: raw.label,
+    reason: raw.reason,
+    confidence: raw.confidence,
+    evidence: raw.evidence,
   }));
 
   // Build diagrams
@@ -126,6 +140,17 @@ export function buildFlow(
   };
 
   return { success: true, flow, historyEntry };
+}
+
+const VALID_NODE_TYPES: readonly NodeType[] = [
+  'file', 'function', 'class', 'method', 'module',
+  'ui', 'controller', 'service', 'repository',
+  'datasource', 'model', 'api', 'sdk', 'external', 'unknown',
+];
+
+function normalizeNodeType(type: string | undefined): NodeType {
+  if (!type) return 'unknown';
+  return VALID_NODE_TYPES.includes(type as NodeType) ? type as NodeType : 'unknown';
 }
 
 /** Generate a human-readable title from the prompt */

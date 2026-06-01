@@ -5,8 +5,9 @@
 
 import * as vscode from 'vscode';
 import { getFlowViewerHtml } from './webviewHtml';
-import { loadFlow } from '../storage/flowStorage';
 import { getWorkspacePath } from '../extension';
+import { openFileInEditor, highlightCodeInEditor } from '../commands/highlightCodeCommand';
+import { readCodeSnippet } from '../mcp/detailTools';
 import type { Flow } from '../types/flow';
 
 /** Cache of open viewer panels by flow ID */
@@ -132,21 +133,9 @@ function handleViewerMessage(
       if (node) {
         // Read code snippet if file mapping exists
         let codeSnippet: string | undefined;
-        if (node.file && node.lineStart) {
-          try {
-            const workspacePath = getWorkspacePath();
-            if (workspacePath) {
-              const fs = require('fs');
-              const path = require('path');
-              const fullPath = path.join(workspacePath, node.file);
-              const content = fs.readFileSync(fullPath, 'utf-8');
-              const lines = content.split('\n');
-              const lineEnd = node.lineEnd || node.lineStart;
-              codeSnippet = lines.slice(node.lineStart - 1, lineEnd).join('\n');
-            }
-          } catch {
-            // File not found — snippet will be undefined
-          }
+        const workspacePath = getWorkspacePath();
+        if (workspacePath) {
+          codeSnippet = readCodeSnippet(workspacePath, node);
         }
 
         // Find incoming/outgoing edges
@@ -165,20 +154,38 @@ function handleViewerMessage(
             lineStart: node.lineStart,
             lineEnd: node.lineEnd,
             description: node.description,
+            symbolName: node.symbolName,
+            reason: node.reason,
+            confidence: node.confidence,
+            evidence: node.evidence,
             codeSnippet,
             incoming: incoming.map((e) => {
               const fromNode = flow.nodes.find((n) => n.id === e.from);
-              return { from: e.from, fromLabel: fromNode?.label || e.from, label: e.label };
+              return {
+                from: e.from,
+                fromLabel: fromNode?.label || e.from,
+                label: e.label,
+                reason: e.reason,
+                confidence: e.confidence,
+                evidence: e.evidence,
+              };
             }),
             outgoing: outgoing.map((e) => {
               const toNode = flow.nodes.find((n) => n.id === e.to);
-              return { to: e.to, toLabel: toNode?.label || e.to, label: e.label };
+              return {
+                to: e.to,
+                toLabel: toNode?.label || e.to,
+                label: e.label,
+                reason: e.reason,
+                confidence: e.confidence,
+                evidence: e.evidence,
+              };
             }),
           },
         });
 
         if (node.file && node.lineStart) {
-          highlightCodeInEditor(node.file, node.lineStart, node.lineEnd || node.lineStart);
+          void highlightCodeInEditor(node.file, node.lineStart, node.lineEnd || node.lineStart);
         }
       }
       break;
@@ -186,13 +193,13 @@ function handleViewerMessage(
 
     case 'openFile': {
       const { file, lineStart, lineEnd } = message.payload;
-      openFileInEditor(file, lineStart, lineEnd);
+      void openFileInEditor(file, lineStart, lineEnd);
       break;
     }
 
     case 'highlightCode': {
       const { file, lineStart, lineEnd } = message.payload;
-      highlightCodeInEditor(file, lineStart, lineEnd);
+      void highlightCodeInEditor(file, lineStart, lineEnd);
       break;
     }
 
@@ -205,42 +212,6 @@ function handleViewerMessage(
       exportJson(flow);
       break;
     }
-  }
-}
-
-async function openFileInEditor(filePath: string, lineStart?: number, lineEnd?: number): Promise<void> {
-  const workspacePath = getWorkspacePath();
-  if (!workspacePath) return;
-  const path = require('path');
-  const fullPath = path.join(workspacePath, filePath);
-  try {
-    const doc = await vscode.workspace.openTextDocument(fullPath);
-    const line = lineStart ? Math.max(0, lineStart - 1) : 0;
-    await vscode.window.showTextDocument(doc, {
-      selection: new vscode.Range(line, 0, lineEnd ? lineEnd - 1 : line, 0),
-      preview: true,
-    });
-  } catch {
-    vscode.window.showErrorMessage('File not found. It may have been moved or deleted.');
-  }
-}
-
-async function highlightCodeInEditor(filePath: string, lineStart?: number, lineEnd?: number): Promise<void> {
-  const workspacePath = getWorkspacePath();
-  if (!workspacePath) return;
-  const path = require('path');
-  const fullPath = path.join(workspacePath, filePath);
-  try {
-    const doc = await vscode.workspace.openTextDocument(fullPath);
-    const editor = await vscode.window.showTextDocument(doc);
-    if (lineStart !== undefined && lineEnd !== undefined) {
-      const start = new vscode.Position(lineStart - 1, 0);
-      const end = new vscode.Position(lineEnd - 1, Number.MAX_SAFE_INTEGER);
-      editor.selection = new vscode.Selection(start, end);
-      editor.revealRange(new vscode.Range(start, end), vscode.TextEditorRevealType.InCenter);
-    }
-  } catch {
-    vscode.window.showErrorMessage('File not found. It may have been moved or deleted.');
   }
 }
 
