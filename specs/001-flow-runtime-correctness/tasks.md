@@ -70,9 +70,9 @@
 
 **Goal**: Distinguishable node types + legend, click-to-code opens beside (not closing the viewer), and clickable sequence participants.
 
-**Independent Test**: Generate a flow; confirm node shapes/icons, legend, beside-open, and sequence node clicks.
+**Independent Test**: Generate a flow; confirm node shapes, legend, beside-open, and sequence node clicks.
 
-- [x] T024 Encode node types as type-specific Mermaid shapes + icons in `src/mcp/standalone.ts` and `src/mcp/mermaidBuilder.ts`.
+- [x] T024 Encode node types as type-specific Mermaid shapes in `src/mcp/standalone.ts` and `src/mcp/mermaidBuilder.ts`.
 - [x] T025 Add `legend` and `readingGuide` to the `generate_flow` response in `src/mcp/standalone.ts`.
 - [x] T026 Open/highlight code in `vscode.ViewColumn.Beside` in `src/commands/highlightCodeCommand.ts` so the viewer stays open.
 - [x] T027 Hydrate sequence actors/participants for clicks in `webview/viewer/viewer.js` (`hydrateMermaidNodes`).

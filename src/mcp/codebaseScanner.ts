@@ -129,17 +129,23 @@ export async function scanWorkspace(
           // Skip very large files (>50KB)
           if (content.length > 50_000) continue;
 
-          // Check if file content actually contains relevant keywords
+          // Check both filename and content. Some projects keep intent in the
+          // filename/class name while the implementation body uses generic names.
           const contentLower = content.toLowerCase();
+          const pathLower = relativePath.toLowerCase();
           const matchingKeywords = keywords.filter((kw) =>
             contentLower.includes(kw)
           );
+          const filenameKeywords = keywords.filter((kw) => pathLower.includes(kw));
 
-          if (matchingKeywords.length > 0) {
+          if (matchingKeywords.length > 0 || filenameKeywords.length > 0) {
+            const reason = matchingKeywords.length > 0
+              ? `Contains keywords: ${matchingKeywords.join(', ')}`
+              : `Filename matches: ${filenameKeywords.join(', ')}`;
             scannedFiles.push({
               path: relativePath,
               content: content.substring(0, 20_000), // Truncate for AI context
-              reason: `Contains keywords: ${matchingKeywords.join(', ')}`,
+              reason,
               score: scoreFile(relativePath, content, keywords),
             });
           }

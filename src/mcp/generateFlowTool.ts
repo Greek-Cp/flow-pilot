@@ -11,6 +11,7 @@ import {
   conceptualEvidence,
   relationshipEvidence,
 } from './flowMetadata';
+import { buildPromptDirectedFlow } from './promptFlowBuilder';
 import { saveFlow } from '../storage/flowStorage';
 import { addHistoryEntry } from '../storage/historyStorage';
 import type { Flow, SourceFile, DiagramType } from '../types/flow';
@@ -129,26 +130,29 @@ export async function generateFlowHandler(
     reason: f.reason,
   }));
 
-  // NOTE: In a real implementation, the AI would analyze the scanned files
-  // and produce structured node/edge data. For now, we create a placeholder
-  // that demonstrates the pipeline. The actual AI analysis happens via MCP
-  // protocol — the tool receives the prompt and the MCP client (AI) provides
-  // the structured output back through the tool's response handling.
-  //
-  // For the extension-side implementation, we provide a basic file-based
-  // analysis that creates nodes from the scanned files.
+  // Build a source-backed flow from the files selected by the prompt. The MCP
+  // client supplies intent through the prompt; Flow Pilot keeps the result
+  // structured, traceable, and valid for the viewer.
 
   let rawNodes: RawNode[];
   let rawEdges: RawEdge[];
   let warnings: string[] | undefined;
+  let flowStatus: 'success' | 'partial';
+  const promptDirectedFlow = buildPromptDirectedFlow(prompt, scannedFiles);
 
-  if (isPromptOnlyFlow) {
+  if (promptDirectedFlow) {
+    rawNodes = promptDirectedFlow.nodes;
+    rawEdges = promptDirectedFlow.edges;
+    warnings = promptDirectedFlow.warnings;
+    flowStatus = scannedFiles.length > 0 ? 'success' : 'partial';
+  } else if (isPromptOnlyFlow) {
     const fallback = buildPromptOnlyFlow(prompt);
     rawNodes = fallback.nodes;
     rawEdges = enrichEdges(fallback.edges, rawNodes, false);
     warnings = isProductFlow
       ? ['No matching source files were found, so Flow Pilot generated a conceptual prompt-only flow.']
       : ['No matching source files were found, so Flow Pilot generated a prompt-only flow.'];
+    flowStatus = 'partial';
   } else {
     rawNodes = scannedFiles.slice(0, 50).map((f, i) => {
       const metadata = buildSourceMetadata(f);
@@ -177,9 +181,8 @@ export async function generateFlowHandler(
         ...meta,
       });
     }
+    flowStatus = 'success';
   }
-
-  const flowStatus: 'success' | 'partial' = isPromptOnlyFlow ? 'partial' : 'success';
 
   // Generate Mermaid diagrams
   const mermaidFlowchart = buildMermaidFlowchart(
@@ -267,7 +270,9 @@ export async function generateFlowHandler(
     flowId: result.flow.id,
     title: result.flow.title,
     status: result.flow.status,
-    summary: isPromptOnlyFlow
+    summary: promptDirectedFlow
+      ? `Generated dynamic source-backed flow from ${scannedFiles.length} files with ${rawNodes.length} nodes.`
+      : isPromptOnlyFlow
       ? isProductFlow
         ? `Generated conceptual prompt-only flow with ${rawNodes.length} nodes because no matching source files were found.`
         : `Generated prompt-only flow with ${rawNodes.length} nodes because no matching source files were found.`
@@ -295,7 +300,7 @@ function buildPromptOnlyFlow(prompt: string): { nodes: RawNode[]; edges: RawEdge
       conceptualNode(prompt, 'login_screen', 'Login Screen', 'ui', 'Collects credentials.'),
       conceptualNode(prompt, 'auth_api', 'Auth API', 'api', 'Handles register, login, and token validation.'),
       conceptualNode(prompt, 'auth_service', 'Auth Service', 'service', 'Hashes passwords and issues tokens.'),
-      conceptualNode(prompt, 'database', 'Database', 'repository', 'Stores users and notes.'),
+      conceptualNode(prompt, 'database', 'Database', 'datasource', 'Stores users and notes.'),
       conceptualNode(prompt, 'notes_list', 'Notes List', 'ui', 'Shows notes for the authenticated user.'),
       conceptualNode(prompt, 'create_note', 'Create Note', 'ui', 'Submits a new note.'),
       conceptualNode(prompt, 'notes_api', 'Notes API', 'api', 'Reads and writes notes with Bearer token auth.'),
@@ -325,7 +330,7 @@ function buildPromptOnlyFlow(prompt: string): { nodes: RawNode[]; edges: RawEdge
       conceptualNode(prompt, 'client_ui', 'Client UI', 'ui', 'Collects input and shows results.'),
       conceptualNode(prompt, 'backend_api', 'Backend API', 'api', 'Receives the client request.'),
       conceptualNode(prompt, 'service_layer', 'Service Layer', 'service', 'Applies business rules.'),
-      conceptualNode(prompt, 'data_store', 'Data Store', 'repository', 'Persists and retrieves data.'),
+      conceptualNode(prompt, 'data_store', 'Data Store', 'datasource', 'Persists and retrieves data.'),
     ],
     edges: [
       { from: 'user', to: 'client_ui', label: 'Start' },

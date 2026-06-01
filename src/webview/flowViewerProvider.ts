@@ -118,7 +118,7 @@ function handleViewerMessage(
   logViewer('handleViewerMessage', {
     flowId: flow.id,
     type: message.type,
-    payload: message.type === 'nodeClick' ? message.payload : undefined,
+    payload: message.type === 'nodeClick' || message.type === 'processClick' ? message.payload : undefined,
   });
 
   switch (message.type) {
@@ -187,6 +187,27 @@ function handleViewerMessage(
         if (node.file && node.lineStart) {
           void highlightCodeInEditor(node.file, node.lineStart, node.lineEnd || node.lineStart);
         }
+      }
+      break;
+    }
+
+    case 'processClick': {
+      const { from, to, label } = message.payload;
+      const edge = flow.edges.find((e) => e.from === from && e.to === to && (!label || e.label === label)) ||
+        flow.edges.find((e) => e.from === from && e.to === to);
+      if (!edge) break;
+
+      const evidence = edge.evidence?.find((item) => item.file);
+      if (evidence?.file) {
+        void highlightCodeInEditor(evidence.file, evidence.lineStart || 1, evidence.lineEnd || evidence.lineStart || 1);
+        break;
+      }
+
+      const toNode = flow.nodes.find((n) => n.id === edge.to && n.file && n.lineStart);
+      const fromNode = flow.nodes.find((n) => n.id === edge.from && n.file && n.lineStart);
+      const targetNode = toNode || fromNode;
+      if (targetNode?.file && targetNode.lineStart) {
+        void highlightCodeInEditor(targetNode.file, targetNode.lineStart, targetNode.lineEnd || targetNode.lineStart);
       }
       break;
     }

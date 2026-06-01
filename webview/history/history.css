@@ -30,8 +30,15 @@ body {
 }
 
 .empty-icon {
-  font-size: 48px;
+  width: 56px;
+  height: 56px;
   margin-bottom: 16px;
+  color: var(--vscode-button-background);
+}
+
+.empty-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 .empty-state h2 {

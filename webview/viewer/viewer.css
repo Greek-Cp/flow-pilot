@@ -181,8 +181,30 @@ body {
 }
 
 .legend-icon {
-  font-size: var(--fp-font-size-md);
+  display: inline-flex;
+  width: 18px;
+  height: 16px;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
   line-height: 1;
+}
+
+.legend-shape {
+  width: 18px;
+  height: 16px;
+  fill: color-mix(in srgb, var(--fp-sidebar-bg, var(--vscode-sideBar-background)) 75%, transparent);
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
+
+.legend-shape-success {
+  fill: #238636;
+  stroke: #2ea043;
+}
+
+.legend-shape-error {
+  fill: #da3633;
+  stroke: #f85149;
 }
 
 /* ============================================================================
@@ -206,13 +228,7 @@ body {
   overflow: hidden;
   cursor: grab;
   position: relative;
-  /* Dotted grid background like graph-pilot */
-  background-image: radial-gradient(
-    circle,
-    var(--fp-border, var(--vscode-panel-border)) 1px,
-    transparent 1px
-  );
-  background-size: 20px 20px;
+  background: var(--fp-bg, var(--vscode-editor-background));
 }
 
 .diagram-container.grabbing {
@@ -338,6 +354,33 @@ body {
   stroke-width: 2;
 }
 
+.diagram svg .node.flowpilotSuccess rect,
+.diagram svg .node.flowpilotSuccess polygon,
+.diagram svg .node.flowpilotSuccess circle,
+.diagram svg .node.flowpilotSuccess ellipse,
+.diagram svg .node.flowpilotSuccess path {
+  fill: color-mix(in srgb, #238636 82%, var(--fp-bg, var(--vscode-editor-background))) !important;
+  stroke: #2ea043 !important;
+}
+
+.diagram svg .node.flowpilotError rect,
+.diagram svg .node.flowpilotError polygon,
+.diagram svg .node.flowpilotError circle,
+.diagram svg .node.flowpilotError ellipse,
+.diagram svg .node.flowpilotError path {
+  fill: color-mix(in srgb, #da3633 82%, var(--fp-bg, var(--vscode-editor-background))) !important;
+  stroke: #f85149 !important;
+}
+
+.diagram svg .node.flowpilotDecision rect,
+.diagram svg .node.flowpilotDecision polygon,
+.diagram svg .node.flowpilotDecision circle,
+.diagram svg .node.flowpilotDecision ellipse,
+.diagram svg .node.flowpilotDecision path {
+  fill: color-mix(in srgb, var(--fp-sidebar-bg, var(--vscode-sideBar-background)) 80%, var(--fp-btn-bg, var(--vscode-button-background))) !important;
+  stroke: var(--fp-btn-bg, var(--vscode-button-background)) !important;
+}
+
 .native-node-title {
   fill: var(--fp-fg, var(--vscode-foreground));
   font-size: 13px;
@@ -360,6 +403,34 @@ body {
 .sequence-message {
   stroke: var(--fp-description, var(--vscode-descriptionForeground));
   stroke-width: 1.5;
+}
+
+.sequence-clickable-process {
+  cursor: pointer;
+}
+
+.diagram svg .sequence-click-target,
+.diagram svg .sequence-click-target.sequence-process-highlight {
+  fill: transparent !important;
+  stroke: transparent !important;
+  stroke-width: 16px !important;
+  pointer-events: stroke;
+}
+
+.diagram svg rect.sequence-click-target,
+.diagram svg rect.sequence-click-target.sequence-process-highlight {
+  pointer-events: fill;
+}
+
+.diagram svg line.sequence-process-highlight:not(.sequence-click-target),
+.diagram svg path.sequence-process-highlight:not(.sequence-click-target) {
+  stroke: var(--fp-btn-bg, var(--vscode-button-background)) !important;
+  stroke-width: 3px !important;
+}
+
+.diagram svg text.sequence-process-highlight {
+  fill: var(--fp-btn-bg, var(--vscode-button-background)) !important;
+  font-weight: 700 !important;
 }
 
 .empty-diagram {

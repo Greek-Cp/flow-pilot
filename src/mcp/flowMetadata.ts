@@ -110,6 +110,7 @@ export function relationshipEvidence(
 export function guessNodeTypeFromPath(filePath: string): NodeType {
   const lower = filePath.toLowerCase();
   if (lower.includes('screen') || lower.includes('page') || lower.includes('view') || lower.includes('widget')) return 'ui';
+  if (lower.includes('usecase') || lower.includes('interactor') || lower.includes('operation') || lower.includes('workflow')) return 'process';
   if (lower.includes('controller')) return 'controller';
   if (lower.includes('service')) return 'service';
   if (lower.includes('repository') || lower.includes('repo')) return 'repository';

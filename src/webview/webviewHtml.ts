@@ -30,7 +30,16 @@ export function getHistoryWebviewHtml(
 <body>
   <div id="app">
     <div id="empty-state" class="empty-state hidden">
-      <div class="empty-icon">📊</div>
+      <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 12h5" />
+          <path d="M9 12c2.5 0 2.5-5 5-5h6" />
+          <path d="M9 12c2.5 0 2.5 5 5 5h6" />
+          <rect x="2.75" y="9.75" width="4.5" height="4.5" rx="1" />
+          <rect x="13.25" y="4.75" width="4.5" height="4.5" rx="1" />
+          <rect x="13.25" y="14.75" width="4.5" height="4.5" rx="1" />
+        </svg>
+      </div>
       <h2>No flow generated yet</h2>
       <p>Ask AI to generate your first code flow using MCP.</p>
       <p class="hint">Example: "Generate payment flow from booking to payment completed."</p>

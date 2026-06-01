@@ -4,6 +4,7 @@
   "description": "Generate interactive code flow diagrams from natural language prompts using AI and MCP.",
   "version": "0.1.0",
   "publisher": "flow-pilot",
+  "icon": "media/flow-pilot-icon.png",
   "engines": {
     "vscode": "^1.99.0"
   },

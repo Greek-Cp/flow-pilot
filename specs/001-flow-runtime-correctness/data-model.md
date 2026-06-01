@@ -8,7 +8,7 @@ Required fields:
 
 - `id`: unique string within the flow.
 - `label`: display label.
-- `type`: one of `file`, `function`, `class`, `method`, `module`, `ui`, `controller`, `service`, `repository`, `datasource`, `model`, `api`, `sdk`, `external`, `unknown`.
+- `type`: one of `file`, `function`, `class`, `method`, `module`, `process`, `ui`, `controller`, `service`, `repository`, `datasource`, `model`, `api`, `sdk`, `external`, `unknown`.
 - `file`: relative path or null.
 - `lineStart`: 1-based start line or null.
 - `lineEnd`: 1-based end line or null.

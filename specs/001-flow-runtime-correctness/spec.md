@@ -78,11 +78,11 @@ As a Flow Pilot user looking at a generated diagram, I can immediately tell whic
 
 **Why this priority**: A diagram is only useful if the reader can interpret it. Users reported that every node looked the same ("which one is the page?"), that clicking a node closed the diagram, and that sequence-diagram nodes were not clickable.
 
-**Independent Test**: Generate any flow. Each node renders with a type-specific shape and icon, a legend explains the icons, clicking a node opens code in a column beside the diagram (the diagram stays open), and sequence participants respond to clicks just like flowchart nodes.
+**Independent Test**: Generate any flow. Each node renders with a type-specific shape, a legend explains the shapes, clicking a node opens code in a column beside the diagram (the diagram stays open), and sequence participants respond to clicks just like flowchart nodes.
 
 **Acceptance Scenarios**:
 
-1. **Given** a generated flow with UI, API, service, and database nodes, **When** the diagram renders, **Then** each node type uses a visually distinct shape and icon and a legend maps each icon to its meaning.
+1. **Given** a generated flow with UI, API, service, process, and data source nodes, **When** the diagram renders, **Then** each node type uses a visually distinct shape and a legend maps each shape to its meaning.
 2. **Given** a source-backed node, **When** the user clicks it or its "Open Code" action, **Then** the code opens in an editor column beside the Flow Viewer and the Flow Viewer remains open.
 3. **Given** the sequence diagram tab is active, **When** the user clicks a participant/actor, **Then** the inspector updates and behaves identically to clicking a flowchart node.
 4. **Given** the `generate_flow` response, **When** an AI client reads it, **Then** the response contains a legend and a reading guide so the assistant can explain which nodes are screens, APIs, services, and data stores.
@@ -98,7 +98,7 @@ As a Flow Pilot user looking at a generated diagram, I can immediately tell whic
 - Conceptual prompt-only nodes may not have file mappings; click should inspect without opening files.
 - A flow may have been saved by an older version without optional metadata; the viewer and detail tools must derive sensible defaults.
 - Source files may have moved after generation; opening code should show a VS Code error without breaking the webview.
-- Node labels may include a type icon; click resolution must still match the underlying Flow Pilot node id/label.
+- Node labels may use type-specific shapes; click resolution must still match the underlying Flow Pilot node id/label.
 
 ## Requirements
 
@@ -118,11 +118,11 @@ As a Flow Pilot user looking at a generated diagram, I can immediately tell whic
 - **FR-012**: MCP MUST expose `get_node_detail` to retrieve a node, incoming/outgoing relationships, evidence, and source snippet.
 - **FR-013**: MCP MUST expose `get_relationship_detail` to retrieve a relationship, endpoint nodes, rationale, evidence, and confidence.
 - **FR-014**: Validation MUST accept the richer node types and optional metadata while preserving older flows.
-- **FR-015**: The flowchart MUST render each node with a type-specific shape and a type icon so users can distinguish screens/pages, APIs, services, data stores, models, and code/files at a glance.
-- **FR-016**: The sequence diagram MUST label participants with a type icon, and its participants/actors MUST be clickable for selection and jump-to-code exactly like flowchart nodes.
-- **FR-017**: The viewer MUST display a legend that maps each node-type icon present in the current flow to its meaning.
+- **FR-015**: The flowchart MUST render each node with a type-specific shape so users can distinguish screens/pages, processes, APIs, services, data stores, models, and code/files at a glance.
+- **FR-016**: The sequence diagram MUST keep participant labels readable, and its participants/actors MUST be clickable for selection and jump-to-code exactly like flowchart nodes.
+- **FR-017**: The viewer MUST display a legend that maps each node-type shape present in the current flow to its meaning.
 - **FR-018**: Opening or highlighting source code from a node MUST open the editor in a column beside the Flow Viewer and MUST NOT replace or close the Flow Viewer webview.
-- **FR-019**: The `generate_flow` MCP response MUST include a `legend` (type → icon/meaning for the types present) and a human-readable `readingGuide` (including the list of screens/pages) so AI clients can explain the diagram clearly.
+- **FR-019**: The `generate_flow` MCP response MUST include a `legend` (type → shape/meaning for the types present) and a human-readable `readingGuide` (including the list of screens/pages) so AI clients can explain the diagram clearly.
 
 ### Key Entities
 
@@ -142,7 +142,7 @@ As a Flow Pilot user looking at a generated diagram, I can immediately tell whic
 - **SC-004**: Every generated source-backed node includes file, line range, reason, confidence, and at least one evidence item.
 - **SC-005**: `npm run compile` succeeds after implementation.
 - **SC-006**: Unit tests for detail extraction and flow metadata pass where practical.
-- **SC-007**: Each generated flowchart node renders with a type-specific shape and icon, and the viewer shows a legend covering every node type present.
+- **SC-007**: Each generated flowchart node renders with a type-specific shape, and the viewer shows a legend covering every node type present.
 - **SC-008**: Clicking a source-backed node (in either the flowchart or sequence tab) opens the mapped code in a column beside the diagram while the Flow Viewer stays open.
 - **SC-009**: Sequence-diagram participants are selectable and update the inspector the same way flowchart nodes do.
 

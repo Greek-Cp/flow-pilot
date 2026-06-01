@@ -32,7 +32,7 @@ Analyze the current workspace and persist an interactive Flow Pilot diagram from
   "sourceFileCount": 1,
   "diagramTypes": ["flowchart", "sequence"],
   "legend": [
-    { "type": "ui", "icon": "🖥️", "meaning": "Screen / page (halaman) in the app" }
+    { "type": "ui", "icon": "parallelogram", "meaning": "Screen / page (halaman) in the app" }
   ],
   "readingGuide": "string — how to read the diagram, including the list of screens/pages",
   "warnings": ["string"],
@@ -42,7 +42,7 @@ Analyze the current workspace and persist an interactive Flow Pilot diagram from
       {
         "id": "string",
         "label": "string",
-        "type": "file | function | class | method | module | ui | controller | service | repository | datasource | model | api | sdk | external | unknown",
+        "type": "file | function | class | method | module | process | ui | controller | service | repository | datasource | model | api | sdk | external | unknown",
         "file": "relative/path.ts",
         "lineStart": 1,
         "lineEnd": 50,
@@ -103,14 +103,15 @@ This contract keeps `schemaVersion: 1` and adds optional node/edge metadata fiel
 
 ## Diagram Legibility
 
-The generated flowchart renders each node with a type-specific Mermaid shape and a leading type icon so screens, APIs, services, and data stores are visually distinct:
+The generated flowchart renders each node with a type-specific Mermaid shape, while the UI legend shows a miniature version of that shape so screens, operations, APIs, services, and data stores are visually distinct:
 
-- `external` 👤 stadium (user/actor)
-- `ui` 🖥️ parallelogram (screen/page)
-- `api` / `controller` 🔌 / 🎮 hexagon (endpoint)
-- `service` / `sdk` ⚙️ / 🧩 subroutine (logic/client)
-- `repository` / `datasource` 🗄️ cylinder (data store)
-- `model` 📦 rounded (data model)
-- everything else 📄 rectangle (code/file)
+- `external` uses `user` with a stadium shape (user/actor)
+- `ui` uses a parallelogram shape (screen/page)
+- `process`, `function`, and `method` use a rectangle shape (operation step)
+- `api` / `controller` use a hexagon shape (endpoint)
+- `service` / `sdk` / `repository` use a subroutine shape (logic/component)
+- `datasource` uses a cylinder shape (data source/storage)
+- `model` uses a rounded shape (data model)
+- everything else uses a rectangle shape (code/file)
 
-The sequence diagram prefixes each participant label with the same type icon. `legend` lists only the types present, and `readingGuide` explains the icons and lists the screens/pages.
+The sequence diagram keeps participant labels plain for readability. `legend` lists only the types present, and `readingGuide` explains the shapes and lists the screens/pages.

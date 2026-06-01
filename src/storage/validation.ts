@@ -7,7 +7,8 @@ import type { Flow, Node, Edge, NodeType, FlowStatus, DiagramType } from '../typ
 import type { HistoryEntry } from '../types/history';
 
 const VALID_NODE_TYPES: readonly NodeType[] = [
-  'file', 'function', 'class', 'method', 'module',
+  'file', 'function', 'class', 'method', 'module', 'process',
+  'decision', 'success', 'error',
   'ui', 'controller', 'service', 'repository',
   'datasource', 'model', 'api', 'sdk', 'external', 'unknown',
 ];

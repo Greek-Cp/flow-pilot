@@ -135,14 +135,15 @@
         throw new Error('Mermaid renderer is not available');
       }
 
+      const mermaidSource = getRenderableMermaidSource(diagram);
       const renderId = `flowpilot-${flowData.flowId || 'flow'}-${currentDiagramType}-${Date.now()}`;
       log('info', 'mermaidRenderCall', {
         renderId,
         type: diagram.type,
-        sourceLength: diagram.mermaidSource.length,
-        sourcePreview: diagram.mermaidSource.slice(0, 240),
+        sourceLength: mermaidSource.length,
+        sourcePreview: mermaidSource.slice(0, 240),
       });
-      const svg = await window.FlowPilotMermaid.render(renderId, diagram.mermaidSource);
+      const svg = await window.FlowPilotMermaid.render(renderId, mermaidSource);
       if (nonce !== renderNonce) return;
 
       diagramDiv.innerHTML = svg;
@@ -167,6 +168,7 @@
       }
     }
 
+    hydrateSequenceProcesses();
     attachNodeClickHandlers();
     applyTransform();
   }
@@ -174,6 +176,66 @@
   function getCurrentDiagram() {
     const diagrams = flowData.diagrams || [];
     return diagrams.find((diagram) => diagram.type === currentDiagramType) || diagrams[0];
+  }
+
+  function getRenderableMermaidSource(diagram) {
+    if (currentDiagramType === 'flowchart' && flowData && Array.isArray(flowData.nodes)) {
+      return buildViewerMermaidFlowchart(flowData.nodes, flowData.edges || []);
+    }
+    return diagram.mermaidSource;
+  }
+
+  function buildViewerMermaidFlowchart(nodes, edges) {
+    const lines = ['flowchart TD'];
+    for (const node of nodes) {
+      const id = sanitizeMermaidId(node.id);
+      const label = sanitizeMermaidLabel(node.label);
+      lines.push(`    ${flowchartNodeDecl(id, displayNodeType(node), label)}`);
+    }
+
+    for (const edge of edges || []) {
+      const from = sanitizeMermaidId(edge.from);
+      const to = sanitizeMermaidId(edge.to);
+      if (edge.label) {
+        lines.push(`    ${from} -->|"${sanitizeMermaidLabel(edge.label)}"| ${to}`);
+      } else {
+        lines.push(`    ${from} --> ${to}`);
+      }
+    }
+
+    const successIds = nodes.filter((node) => displayNodeType(node) === 'success').map((node) => sanitizeMermaidId(node.id));
+    const errorIds = nodes.filter((node) => displayNodeType(node) === 'error').map((node) => sanitizeMermaidId(node.id));
+    const decisionIds = nodes.filter((node) => displayNodeType(node) === 'decision').map((node) => sanitizeMermaidId(node.id));
+    if (successIds.length) {
+      lines.push('    classDef flowpilotSuccess fill:#238636,stroke:#2ea043,color:#ffffff;');
+      lines.push(`    class ${successIds.join(',')} flowpilotSuccess;`);
+    }
+    if (errorIds.length) {
+      lines.push('    classDef flowpilotError fill:#da3633,stroke:#f85149,color:#ffffff;');
+      lines.push(`    class ${errorIds.join(',')} flowpilotError;`);
+    }
+    if (decisionIds.length) {
+      lines.push('    classDef flowpilotDecision fill:#1f2937,stroke:#58a6ff,color:#ffffff;');
+      lines.push(`    class ${decisionIds.join(',')} flowpilotDecision;`);
+    }
+    return lines.join('\n');
+  }
+
+  function flowchartNodeDecl(id, type, label) {
+    switch (type) {
+      case 'external': return `${id}(["${label}"])`;
+      case 'ui': return `${id}[/"${label}"/]`;
+      case 'api':
+      case 'controller': return `${id}{{"${label}"}}`;
+      case 'service':
+      case 'repository':
+      case 'sdk':
+      case 'class': return `${id}[["${label}"]]`;
+      case 'datasource': return `${id}[("${label}")]`;
+      case 'model': return `${id}("${label}")`;
+      case 'decision': return `${id}{"${label}"}`;
+      default: return `${id}["${label}"]`;
+    }
   }
 
   function ensureSvgVisible(svg) {
@@ -241,6 +303,172 @@
     log('info', 'hydrateMermaidNodesDone', { candidateCount: candidates.size, mappedCount });
   }
 
+  function hydrateSequenceProcesses() {
+    if (currentDiagramType !== 'sequence') return;
+    const svg = diagramDiv.querySelector('svg');
+    if (!svg || !flowData) return;
+
+    const processes = getCurrentSequenceProcesses();
+    if (processes.length === 0) return;
+
+    const messageLines = [
+      ...svg.querySelectorAll('line[class*="messageLine"], path[class*="messageLine"], line.sequence-message, path.sequence-message'),
+    ];
+    const messageTexts = [
+      ...svg.querySelectorAll('text.messageText, text[class*="messageText"], text.native-edge-label'),
+    ];
+
+    const max = Math.max(messageLines.length, messageTexts.length);
+    for (let index = 0; index < max && index < processes.length; index++) {
+      const process = processes[index];
+      decorateSequenceProcessElement(messageLines[index], index, process);
+      decorateSequenceProcessElement(messageTexts[index], index, process);
+    }
+
+    addSequenceHitTargets(svg, messageLines, messageTexts, processes);
+
+    log('info', 'hydrateSequenceProcessesDone', {
+      processCount: processes.length,
+      lineCount: messageLines.length,
+      textCount: messageTexts.length,
+    });
+  }
+
+  function decorateSequenceProcessElement(element, index, process) {
+    if (!element) return;
+    element.setAttribute('data-process-index', String(index));
+    element.classList.add('sequence-clickable-process');
+    element.setAttribute('role', 'button');
+    element.setAttribute('tabindex', '0');
+    element.setAttribute(
+      'aria-label',
+      `Inspect process ${process.label} from ${process.fromLabel} to ${process.toLabel}`
+    );
+  }
+
+  function addSequenceHitTargets(svg, messageLines, messageTexts, processes) {
+    svg.querySelectorAll('.sequence-click-targets').forEach((target) => target.remove());
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.setAttribute('class', 'sequence-click-targets');
+
+    for (let index = 0; index < processes.length; index++) {
+      const line = messageLines[index];
+      const text = messageTexts[index];
+      const hit = createSequenceHitTarget(line, text, index, processes[index]);
+      if (hit) group.appendChild(hit);
+    }
+
+    if (group.childNodes.length > 0) {
+      svg.appendChild(group);
+    }
+  }
+
+  function createSequenceHitTarget(line, text, index, process) {
+    const ns = 'http://www.w3.org/2000/svg';
+    let hit = null;
+
+    if (line && line.tagName && line.tagName.toLowerCase() === 'line') {
+      hit = document.createElementNS(ns, 'line');
+      for (const attr of ['x1', 'y1', 'x2', 'y2']) {
+        const value = line.getAttribute(attr);
+        if (value !== null) hit.setAttribute(attr, value);
+      }
+    } else if (line && line.getAttribute('d')) {
+      hit = document.createElementNS(ns, 'path');
+      hit.setAttribute('d', line.getAttribute('d'));
+    } else if (text && typeof text.getBBox === 'function') {
+      try {
+        const box = text.getBBox();
+        hit = document.createElementNS(ns, 'rect');
+        hit.setAttribute('x', String(box.x - 8));
+        hit.setAttribute('y', String(box.y - 6));
+        hit.setAttribute('width', String(box.width + 16));
+        hit.setAttribute('height', String(box.height + 12));
+      } catch {
+        hit = null;
+      }
+    }
+
+    if (!hit) return null;
+    hit.setAttribute('data-process-index', String(index));
+    hit.setAttribute('class', 'sequence-click-target sequence-clickable-process');
+    hit.setAttribute('role', 'button');
+    hit.setAttribute('tabindex', '0');
+    hit.setAttribute('aria-label', `Inspect process ${process.label}`);
+    return hit;
+  }
+
+  function getCurrentSequenceProcesses() {
+    if (!flowData) return [];
+    const svg = diagramDiv.querySelector('svg');
+    if (svg && svg.classList.contains('native-diagram')) {
+      return (flowData.edges || []).map((edge, index) => processFromEdge(edge, index));
+    }
+
+    const diagram = getCurrentDiagram();
+    const source = diagram && diagram.type === 'sequence' ? diagram.mermaidSource : '';
+    const parsed = parseSequenceProcesses(source);
+    return parsed.length > 0
+      ? parsed
+      : (flowData.edges || []).map((edge, index) => processFromEdge(edge, index));
+  }
+
+  function parseSequenceProcesses(source) {
+    const participantLabels = new Map();
+    const processes = [];
+    const lines = String(source || '').split(/\r?\n/);
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line === 'sequenceDiagram') continue;
+
+      const participantMatch = line.match(/^(?:actor|participant)\s+([A-Za-z_][\w]*)\s*(?:as\s+(.+))?$/);
+      if (participantMatch) {
+        participantLabels.set(participantMatch[1], cleanupSequenceLabel(participantMatch[2] || participantMatch[1]));
+        continue;
+      }
+
+      const messageMatch = line.match(/^([A-Za-z_][\w]*)\s*(?:-->>|->>|-->|->|--x|-x|--\)|-\))\s*([A-Za-z_][\w]*)\s*:\s*(.+)$/);
+      if (!messageMatch) continue;
+
+      const from = messageMatch[1];
+      const to = messageMatch[2];
+      const label = cleanupSequenceLabel(messageMatch[3]);
+      processes.push({
+        index: processes.length,
+        from,
+        to,
+        label,
+        fromLabel: participantLabels.get(from) || from,
+        toLabel: participantLabels.get(to) || to,
+      });
+    }
+
+    return processes;
+  }
+
+  function processFromEdge(edge, index) {
+    const fromNode = flowData.nodes.find((node) => node.id === edge.from);
+    const toNode = flowData.nodes.find((node) => node.id === edge.to);
+    return {
+      index,
+      from: edge.from,
+      to: edge.to,
+      label: edge.label || 'calls',
+      fromLabel: fromNode ? fromNode.label : edge.from,
+      toLabel: toNode ? toNode.label : edge.to,
+      edge,
+    };
+  }
+
+  function cleanupSequenceLabel(label) {
+    return String(label || '')
+      .replace(/^["']|["']$/g, '')
+      .replace(/^\[|\]$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function renderNativeFlowchart() {
     const nodes = flowData.nodes || [];
     const edges = flowData.edges || [];
@@ -290,7 +518,7 @@
     const nodeSvg = nodes.map((node) => {
       const pos = positions.get(node.id);
       const title = escapeSvg(node.label);
-      const type = escapeSvg(node.type || 'unknown');
+      const type = escapeSvg(displayNodeType(node));
       const file = escapeSvg(node.file || 'No source mapping');
       return `<g class="native-node node" data-id="${escapeAttr(node.id)}" transform="translate(${pos.x}, ${pos.y})">
           <rect width="${cardW}" height="${cardH}" rx="6" />
@@ -368,10 +596,51 @@
     // Keyboard handler for accessibility
     svg.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      const processTarget = e.target.closest('[data-process-index]');
+      if (processTarget) {
+        e.preventDefault();
+        handleProcessClick(processTarget);
+        return;
+      }
       const nodeGroup = e.target.closest('g.node,[data-id]');
       if (!nodeGroup) return;
       e.preventDefault();
       handleNodeClick(nodeGroup);
+    });
+  }
+
+  function handleProcessClick(processElement) {
+    if (!flowData) return;
+    const rawIndex = processElement.getAttribute('data-process-index');
+    const processIndex = Number.parseInt(rawIndex || '', 10);
+    const processes = getCurrentSequenceProcesses();
+    const process = Number.isFinite(processIndex) ? processes[processIndex] : null;
+    if (!process) return;
+
+    selectedNodeId = null;
+    const matchedEdge = process.edge || resolveSequenceProcessEdge(process);
+    log('info', 'sequenceProcessClicked', {
+      processIndex,
+      label: process.label,
+      from: process.from,
+      to: process.to,
+      matchedEdge: matchedEdge ? `${matchedEdge.from}->${matchedEdge.to}` : null,
+    });
+
+    diagramDiv.querySelectorAll('.node-highlight').forEach((n) => n.classList.remove('node-highlight'));
+    diagramDiv.querySelectorAll('.sequence-process-highlight').forEach((n) => n.classList.remove('sequence-process-highlight'));
+    diagramDiv
+      .querySelectorAll(`[data-process-index="${processIndex}"]`)
+      .forEach((n) => n.classList.add('sequence-process-highlight'));
+
+    updateProcessInspector(process, matchedEdge, flowData);
+    vscode.postMessage({
+      type: 'processClick',
+      payload: {
+        from: matchedEdge ? matchedEdge.from : process.from,
+        to: matchedEdge ? matchedEdge.to : process.to,
+        label: matchedEdge ? matchedEdge.label : process.label,
+      },
     });
   }
 
@@ -436,9 +705,116 @@
     return null;
   }
 
+  function resolveSequenceProcessEdge(process) {
+    if (!flowData || !process) return null;
+    const edges = flowData.edges || [];
+    if (edges.length === 0) return null;
+
+    const fromNodeId = resolveFlowNodeId(process.from, normalizeText(process.fromLabel || ''));
+    const toNodeId = resolveFlowNodeId(process.to, normalizeText(process.toLabel || ''));
+    const labelMatches = (edge) => labelsAreSimilar(edge.label || '', process.label || '');
+
+    const direct = edges.find((edge) =>
+      (!fromNodeId || edge.from === fromNodeId) &&
+      (!toNodeId || edge.to === toNodeId) &&
+      labelMatches(edge)
+    );
+    if (direct) return direct;
+
+    const directional = edges.find((edge) =>
+      (fromNodeId && edge.from === fromNodeId) ||
+      (toNodeId && edge.to === toNodeId)
+    );
+    if (directional && labelMatches(directional)) return directional;
+
+    const labelOnly = edges.find(labelMatches);
+    if (labelOnly) return labelOnly;
+
+    return null;
+  }
+
+  function labelsAreSimilar(a, b) {
+    const left = normalizeComparable(a);
+    const right = normalizeComparable(b);
+    if (!left || !right) return false;
+    if (left === right || left.includes(right) || right.includes(left)) return true;
+
+    const compactLeft = left.replace(/param|updated|entity|list/g, '');
+    const compactRight = right.replace(/param|updated|entity|list/g, '');
+    return Boolean(compactLeft && compactRight && (
+      compactLeft === compactRight ||
+      compactLeft.includes(compactRight) ||
+      compactRight.includes(compactLeft)
+    ));
+  }
+
+  function normalizeComparable(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/right|left/g, '')
+      .replace(/[^a-z0-9]+/g, '')
+      .trim();
+  }
+
   // =====================================================================
   // Node Inspector — Graph Pilot Style (always visible, direct update)
   // =====================================================================
+
+  function updateProcessInspector(process, matchedEdge, data) {
+    if (!inspectorContent) return;
+
+    const nodes = data.nodes || [];
+    const fromNode = matchedEdge ? nodes.find((node) => node.id === matchedEdge.from) : null;
+    const toNode = matchedEdge ? nodes.find((node) => node.id === matchedEdge.to) : null;
+    const evidence = matchedEdge && Array.isArray(matchedEdge.evidence) ? matchedEdge.evidence : [];
+
+    let html = '';
+    html += '<div class="inspector-field">' +
+      '<span class="inspector-label">Name</span>' +
+      '<span class="inspector-value inspector-value-strong">' + esc(process.label) + '</span>' +
+      '</div>';
+
+    html += '<div class="inspector-field">' +
+      '<span class="inspector-label">Type</span>' +
+      '<span class="inspector-badge">process</span>' +
+      '</div>';
+
+    html += '<div class="inspector-field">' +
+      '<span class="inspector-label">From</span>' +
+      '<span class="inspector-value">' + esc(fromNode ? fromNode.label : process.fromLabel) + '</span>' +
+      '</div>';
+
+    html += '<div class="inspector-field">' +
+      '<span class="inspector-label">To</span>' +
+      '<span class="inspector-value">' + esc(toNode ? toNode.label : process.toLabel) + '</span>' +
+      '</div>';
+
+    if (matchedEdge && matchedEdge.reason) {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Reason</span>' +
+        '<span class="inspector-value">' + esc(matchedEdge.reason) + '</span>' +
+        '</div>';
+    } else {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Reason</span>' +
+        '<span class="inspector-value">Generated from the sequence message. No direct source-backed edge match was found.</span>' +
+        '</div>';
+    }
+
+    if (matchedEdge && typeof matchedEdge.confidence === 'number') {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Confidence</span>' +
+        '<span class="inspector-confidence ' + getConfidenceClass(matchedEdge.confidence) + '">' +
+        Math.round(matchedEdge.confidence * 100) + '%</span>' +
+        '</div>';
+    }
+
+    if (evidence.length > 0) {
+      html += renderEvidence(evidence);
+    }
+
+    inspectorContent.innerHTML = html;
+  }
 
   function updateInspector(nodeData, data) {
     if (!inspectorContent) return;
@@ -459,7 +835,7 @@
     // TYPE
     html += '<div class="inspector-field">' +
       '<span class="inspector-label">Type</span>' +
-      '<span class="inspector-badge">' + esc(nodeData.type) + '</span>' +
+      '<span class="inspector-badge">' + esc(displayNodeType(nodeData)) + '</span>' +
       '</div>';
 
     // FILE
@@ -573,21 +949,25 @@
     }
   }
 
-  // ─── Legend (maps node-type icons to meanings for types present) ───
+  // ─── Legend (maps node-type shapes to meanings for types present) ───
 
   const LEGEND_ITEMS = [
-    { type: 'external', icon: '👤', label: 'User / Actor' },
-    { type: 'ui', icon: '🖥️', label: 'Screen / Page' },
-    { type: 'api', icon: '🔌', label: 'API Endpoint' },
-    { type: 'controller', icon: '🎮', label: 'Controller' },
-    { type: 'service', icon: '⚙️', label: 'Service / Logic' },
-    { type: 'sdk', icon: '🧩', label: 'SDK / Client' },
-    { type: 'repository', icon: '🗄️', label: 'Repository' },
-    { type: 'datasource', icon: '🗄️', label: 'Data Source' },
-    { type: 'model', icon: '📦', label: 'Model / Data' },
-    { type: 'function', icon: '🔧', label: 'Function' },
-    { type: 'method', icon: '🔧', label: 'Method' },
-    { type: 'class', icon: '🏛️', label: 'Class' },
+    { type: 'external', shape: 'stadium', label: 'User / Actor' },
+    { type: 'ui', shape: 'parallelogram', label: 'Screen / Page' },
+    { type: 'process', shape: 'process', label: 'Process' },
+    { type: 'api', shape: 'hexagon', label: 'API Endpoint' },
+    { type: 'controller', shape: 'hexagon', label: 'Controller' },
+    { type: 'service', shape: 'subroutine', label: 'Service / Logic' },
+    { type: 'sdk', shape: 'subroutine', label: 'SDK / Client' },
+    { type: 'repository', shape: 'subroutine', label: 'Repository' },
+    { type: 'datasource', shape: 'cylinder', label: 'Data Source' },
+    { type: 'model', shape: 'rounded', label: 'Model / Data' },
+    { type: 'function', shape: 'process', label: 'Function' },
+    { type: 'method', shape: 'process', label: 'Method' },
+    { type: 'class', shape: 'subroutine', label: 'Class' },
+    { type: 'decision', shape: 'diamond', label: 'Decision' },
+    { type: 'success', shape: 'success', label: 'Success' },
+    { type: 'error', shape: 'error', label: 'Error' },
   ];
 
   function renderLegend() {
@@ -596,23 +976,41 @@
       legendEl.innerHTML = '';
       return;
     }
-    const present = new Set(flowData.nodes.map((n) => n.type));
+    const present = new Set(flowData.nodes.map((n) => displayNodeType(n)));
     const items = LEGEND_ITEMS.filter((item) => present.has(item.type));
-    // Any node type not in the known list falls back to the code/file icon.
+    // Any node type not in the known list falls back to a generic rectangle.
     const known = new Set(LEGEND_ITEMS.map((item) => item.type));
     if ([...present].some((t) => !known.has(t))) {
-      items.push({ type: 'file', icon: '📄', label: 'Code / File' });
+      items.push({ type: 'file', shape: 'rectangle', label: 'Code / File' });
     }
     legendEl.innerHTML = items
       .map(
         (item) =>
           '<span class="legend-item"><span class="legend-icon">' +
-          item.icon +
+          legendShape(item.shape) +
           '</span>' +
           esc(item.label) +
           '</span>'
       )
       .join('');
+  }
+
+  function legendShape(name) {
+    const shapes = {
+      stadium: '<rect x="2" y="5" width="20" height="14" rx="7"/>',
+      parallelogram: '<polygon points="6 5 22 5 18 19 2 19"/>',
+      process: '<rect x="3" y="5" width="18" height="14" rx="2"/>',
+      hexagon: '<polygon points="7 5 17 5 22 12 17 19 7 19 2 12"/>',
+      subroutine: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14"/><path d="M17 5v14"/>',
+      cylinder: '<ellipse cx="12" cy="6" rx="8.5" ry="3"/><path d="M3.5 6v12c0 1.7 3.8 3 8.5 3s8.5-1.3 8.5-3V6"/><path d="M3.5 12c0 1.7 3.8 3 8.5 3s8.5-1.3 8.5-3"/>',
+      rounded: '<rect x="3" y="5" width="18" height="14" rx="6"/>',
+      diamond: '<path d="M12 3 21 12 12 21 3 12Z"/>',
+      success: '<rect x="3" y="5" width="18" height="14" rx="2" class="legend-shape-success"/>',
+      error: '<rect x="3" y="5" width="18" height="14" rx="2" class="legend-shape-error"/>',
+      rectangle: '<rect x="3" y="5" width="18" height="14" rx="1"/>',
+    };
+    const body = shapes[name] || shapes.rectangle;
+    return '<svg class="legend-shape" viewBox="0 0 24 24" aria-hidden="true">' + body + '</svg>';
   }
 
   function updateInspectorPlaceholder() {
@@ -876,8 +1274,11 @@
     if (!dragMoved) {
       const el = document.elementFromPoint(e.clientX, e.clientY);
       if (el) {
+        const processTarget = el.closest('[data-process-index]');
         const nodeGroup = el.closest('g.node,[data-id]');
-        if (nodeGroup) {
+        if (processTarget) {
+          handleProcessClick(processTarget);
+        } else if (nodeGroup) {
           handleNodeClick(nodeGroup);
         } else {
           // Clicked empty space → reset inspector
@@ -940,6 +1341,33 @@
       .replace(/\u00a0/g, ' ')
       .trim()
       .toLowerCase();
+  }
+
+  function displayNodeType(node) {
+    const type = node && node.type ? node.type : 'unknown';
+    const label = String(node && node.label ? node.label : '');
+    const lower = label.toLowerCase();
+
+    if (type === 'external' || type === 'decision' || type === 'success' || type === 'error') return type;
+    if (/param|entity|model|dto|payload/i.test(label)) return 'model';
+    if (/[A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*\s*\(/.test(label) || /[A-Za-z_$][\w$]*\s*\([^)]*\)/.test(label)) {
+      return 'process';
+    }
+    if (type === 'ui' && !/(screen|page|view|form|home|login|register|notes)/i.test(label)) return 'process';
+    if (/\b(database|data store|storage|sharedpreferences|local storage)\b/.test(lower)) return 'datasource';
+    return type;
+  }
+
+  function sanitizeMermaidLabel(label) {
+    const clean = String(label || '')
+      .replace(/"/g, "'")
+      .replace(/[|;]/g, '/')
+      .replace(/[<>]/g, '')
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 60);
+    return clean || 'Node';
   }
 
   function sanitizeMermaidId(id) {
