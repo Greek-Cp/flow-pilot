@@ -38,7 +38,7 @@ export function nodeIconName(type: string): string {
     case 'model': return 'rounded';
     case 'process':
     case 'function':
-    case 'method': return 'process';
+     case 'method': return 'process';
     case 'class': return 'subroutine';
     case 'decision': return 'diamond';
     case 'success': return 'success';

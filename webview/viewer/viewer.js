@@ -34,6 +34,9 @@
   let dragStartY = 0;
   let dragMoved = false;
   let renderNonce = 0;
+  let canvasGridSize = 32;
+  let canvasDotSize = 1;
+  let showDomainAreas = false;
 
   // Inspector resize state
   let isResizing = false;
@@ -53,6 +56,7 @@
   const zoomOutBtn = document.getElementById('zoom-out');
   const zoomFitBtn = document.getElementById('zoom-fit');
   const zoomResetBtn = document.getElementById('zoom-reset');
+  const domainToggleBtn = document.getElementById('domain-toggle');
   const zoomLevel = document.getElementById('zoom-level');
   const progressDiv = document.getElementById('progress');
   const progressFill = document.getElementById('progress-fill');
@@ -114,6 +118,7 @@
     }
 
     const nonce = ++renderNonce;
+    unmountRoadmapFlowchart();
     diagramDiv.innerHTML = '<div class="diagram-loading">Rendering diagram...</div>';
     log('info', 'renderDiagramStart', {
       nonce,
@@ -131,6 +136,10 @@
       if (!diagram || !diagram.mermaidSource) {
         throw new Error(`No Mermaid source found for ${currentDiagramType}`);
       }
+      if ((currentDiagramType === 'flowchart' || currentDiagramType === 'sequence') && renderRoadmapDiagram(diagram, nonce)) {
+        return;
+      }
+      unmountRoadmapFlowchart();
       if (!window.FlowPilotMermaid || typeof window.FlowPilotMermaid.render !== 'function') {
         throw new Error('Mermaid renderer is not available');
       }
@@ -162,8 +171,10 @@
       });
       showError(`Mermaid render failed: ${err && err.message ? err.message : String(err)}`);
       if (currentDiagramType === 'sequence') {
+        unmountRoadmapFlowchart();
         renderNativeSequence();
       } else {
+        unmountRoadmapFlowchart();
         renderNativeFlowchart();
       }
     }
@@ -171,6 +182,65 @@
     hydrateSequenceProcesses();
     attachNodeClickHandlers();
     applyTransform();
+  }
+
+  function renderRoadmapDiagram(diagram, nonce) {
+    if (!window.FlowPilotRoadmapRenderer || typeof window.FlowPilotRoadmapRenderer.render !== 'function') {
+      return false;
+    }
+
+    unmountRoadmapFlowchart();
+    diagramDiv.innerHTML = '';
+    diagramDiv.style.transform = 'none';
+    diagramContainer.classList.add('react-flowchart-mode');
+    zoomLevel.textContent = '100%';
+
+    window.FlowPilotRoadmapRenderer.render({
+      container: diagramDiv,
+      mermaidSource: diagram.mermaidSource,
+      flowData,
+      mode: currentDiagramType === 'sequence' ? 'sequence' : 'flowchart',
+      showDomainAreas,
+      callbacks: {
+        onNodeClick: (nodeId, metadata) => selectNodeById(nodeId, null, metadata),
+        onMessageClick: (message) => selectSequenceMessage(message),
+        onPaneClick: () => {
+          selectedNodeId = null;
+          updateInspectorPlaceholder();
+        },
+        onZoomChange: (zoom) => {
+          zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
+        },
+        onLog: (level, message, data) => log(level, message, data),
+      },
+    });
+
+    log('info', 'roadmapDiagramRenderSuccess', {
+      nonce,
+      mode: currentDiagramType,
+      sourceLength: diagram.mermaidSource.length,
+      nodeCount: flowData.nodes ? flowData.nodes.length : 0,
+      edgeCount: flowData.edges ? flowData.edges.length : 0,
+    });
+    return true;
+  }
+
+  function unmountRoadmapFlowchart() {
+    if (window.FlowPilotRoadmapRenderer && typeof window.FlowPilotRoadmapRenderer.unmount === 'function') {
+      try {
+        window.FlowPilotRoadmapRenderer.unmount(diagramDiv);
+      } catch (err) {
+        log('warn', 'roadmapFlowchartUnmountFailed', {
+          message: err && err.message ? err.message : String(err),
+        });
+      }
+    }
+    diagramContainer.classList.remove('react-flowchart-mode', 'dot-highlight');
+    diagramDiv.classList.remove('fp-roadmap-root');
+  }
+
+  function isRoadmapFlowchartActive() {
+    return diagramContainer.classList.contains('react-flowchart-mode');
   }
 
   function getCurrentDiagram() {
@@ -653,21 +723,52 @@
     );
     if (!nodeId) return;
 
+    selectNodeById(nodeId, nodeGroup);
+  }
+
+  function selectNodeById(nodeId, renderedElement, semanticMetadata) {
+    if (!flowData) return;
+
     selectedNodeId = nodeId;
     log('info', 'nodeClicked', { nodeId });
+    const flowNodes = flowData.nodes || [];
 
     // Highlight selected node
     diagramDiv.querySelectorAll('.node-highlight').forEach((n) => n.classList.remove('node-highlight'));
-    nodeGroup.classList.add('node-highlight');
+    if (renderedElement) {
+      renderedElement.classList.add('node-highlight');
+    }
 
     // Update inspector directly from flowData (like Graph Pilot)
-    const node = flowData.nodes.find((n) => n.id === nodeId);
-    if (node) {
-      updateInspector(node, flowData);
+    const node = flowNodes.find((n) => n.id === nodeId) || {
+      id: nodeId,
+      label: nodeId,
+      type: 'process',
+    };
+    if (node || semanticMetadata) {
+      updateInspector({ ...node, semantic: semanticMetadata }, flowData);
     }
 
     // Notify extension host (for editor auto-highlight + code snippet enrichment)
-    vscode.postMessage({ type: 'nodeClick', payload: { nodeId } });
+    if (flowNodes.some((n) => n.id === nodeId)) {
+      vscode.postMessage({ type: 'nodeClick', payload: { nodeId } });
+    }
+  }
+
+  function selectSequenceMessage(message) {
+    if (!inspectorContent || !message) return;
+    selectedNodeId = null;
+    log('info', 'sequenceMessageClicked', {
+      id: message.id,
+      from: message.from,
+      to: message.to,
+      label: message.label,
+    });
+    updateMessageInspector(message);
+    vscode.postMessage({
+      type: 'processClick',
+      payload: { from: message.from, to: message.to, label: message.label },
+    });
   }
 
   function resolveFlowNodeId(renderedId, labelText) {
@@ -816,9 +917,57 @@
     inspectorContent.innerHTML = html;
   }
 
+  function updateMessageInspector(message) {
+    const edge = (flowData.edges || []).find((item) =>
+      item.from === message.from &&
+      item.to === message.to &&
+      (!message.label || item.label === message.label)
+    ) || (flowData.edges || []).find((item) => item.from === message.from && item.to === message.to);
+    const nodes = flowData.nodes || [];
+    const fromNode = nodes.find((node) => node.id === (edge ? edge.from : message.from));
+    const toNode = nodes.find((node) => node.id === (edge ? edge.to : message.to));
+    const evidence = edge && Array.isArray(edge.evidence) ? edge.evidence : (message.evidence || []);
+
+    let html = '';
+    html += '<div class="inspector-field">' +
+      '<span class="inspector-label">Message</span>' +
+      '<span class="inspector-value inspector-value-strong">' + esc(message.label || 'message') + '</span>' +
+      '</div>';
+    html += '<div class="inspector-field">' +
+      '<span class="inspector-label">Kind</span>' +
+      '<span class="inspector-badge">' + esc(message.messageKind || 'call') + '</span>' +
+      '</div>';
+    html += '<div class="inspector-field">' +
+      '<span class="inspector-label">From</span>' +
+      '<span class="inspector-value">' + esc(fromNode ? fromNode.label : message.from) + '</span>' +
+      '</div>';
+    html += '<div class="inspector-field">' +
+      '<span class="inspector-label">To</span>' +
+      '<span class="inspector-value">' + esc(toNode ? toNode.label : message.to) + '</span>' +
+      '</div>';
+    if (edge && edge.reason) {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Reason</span>' +
+        '<span class="inspector-value">' + esc(edge.reason) + '</span>' +
+        '</div>';
+    }
+    if (edge && typeof edge.confidence === 'number') {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Confidence</span>' +
+        '<span class="inspector-confidence ' + getConfidenceClass(edge.confidence) + '">' +
+        Math.round(edge.confidence * 100) + '%</span>' +
+        '</div>';
+    }
+    if (evidence.length > 0) {
+      html += renderEvidence(evidence);
+    }
+    inspectorContent.innerHTML = html;
+  }
+
   function updateInspector(nodeData, data) {
     if (!inspectorContent) return;
 
+    const semantic = nodeData.semantic || null;
     const edges = data.edges || [];
     const nodes = data.nodes || [];
     const incoming = edges.filter((e) => e.to === nodeData.id);
@@ -832,6 +981,57 @@
       '<span class="inspector-value inspector-value-strong">' + esc(nodeData.label) + '</span>' +
       '</div>';
 
+    if (semantic) {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Kind</span>' +
+        '<span class="inspector-badge">' + esc(semantic.nodeKind || 'unknown') + '</span>' +
+        '</div>';
+
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Domain Area</span>' +
+        '<span class="inspector-value">' + esc(semantic.domainArea || 'Application') + '</span>' +
+        '</div>';
+
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Layer</span>' +
+        '<span class="inspector-value">' + esc(semantic.layer || '') + '</span>' +
+        '</div>';
+
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">Role</span>' +
+        '<span class="inspector-value">' + esc(semantic.role || '') + '</span>' +
+        '</div>';
+
+      if (semantic.symbol) {
+        html += '<div class="inspector-field">' +
+          '<span class="inspector-label">Symbol</span>' +
+          '<span class="inspector-value inspector-value-strong">' + esc(semantic.symbol) + '</span>' +
+          '</div>';
+      }
+
+      if (semantic.reason) {
+        html += '<div class="inspector-field">' +
+          '<span class="inspector-label">Reason</span>' +
+          '<span class="inspector-value">' + esc(semantic.reason) + '</span>' +
+          '</div>';
+      }
+
+      if (typeof semantic.confidence === 'number') {
+        html += '<div class="inspector-field">' +
+          '<span class="inspector-label">Confidence</span>' +
+          '<span class="inspector-confidence ' + getConfidenceClass(semantic.confidence) + '">' +
+          Math.round(semantic.confidence * 100) + '%</span>' +
+          '</div>';
+      }
+
+      if (semantic.nodeKind === 'unknown') {
+        html += '<div class="inspector-field">' +
+          '<span class="inspector-label">Review</span>' +
+          '<span class="inspector-value no-mapping">Needs review: source metadata was too limited for a confident classification.</span>' +
+          '</div>';
+      }
+    }
+
     // TYPE
     html += '<div class="inspector-field">' +
       '<span class="inspector-label">Type</span>' +
@@ -843,6 +1043,13 @@
       html += '<div class="inspector-field">' +
         '<span class="inspector-label">File</span>' +
         '<span class="inspector-value inspector-value-path">' + esc(nodeData.file) + '</span>' +
+        '</div>';
+    }
+
+    if (semantic && semantic.filePath && !nodeData.file) {
+      html += '<div class="inspector-field">' +
+        '<span class="inspector-label">File</span>' +
+        '<span class="inspector-value inspector-value-path">' + esc(semantic.filePath) + '</span>' +
         '</div>';
     }
 
@@ -952,38 +1159,32 @@
   // ─── Legend (maps node-type shapes to meanings for types present) ───
 
   const LEGEND_ITEMS = [
-    { type: 'external', shape: 'stadium', label: 'User / Actor' },
-    { type: 'ui', shape: 'parallelogram', label: 'Screen / Page' },
-    { type: 'process', shape: 'process', label: 'Process' },
-    { type: 'api', shape: 'hexagon', label: 'API Endpoint' },
-    { type: 'controller', shape: 'hexagon', label: 'Controller' },
-    { type: 'service', shape: 'subroutine', label: 'Service / Logic' },
-    { type: 'sdk', shape: 'subroutine', label: 'SDK / Client' },
-    { type: 'repository', shape: 'subroutine', label: 'Repository' },
-    { type: 'datasource', shape: 'cylinder', label: 'Data Source' },
-    { type: 'model', shape: 'rounded', label: 'Model / Data' },
-    { type: 'function', shape: 'process', label: 'Function' },
-    { type: 'method', shape: 'process', label: 'Method' },
-    { type: 'class', shape: 'subroutine', label: 'Class' },
-    { type: 'decision', shape: 'diamond', label: 'Decision' },
-    { type: 'success', shape: 'success', label: 'Success' },
-    { type: 'error', shape: 'error', label: 'Error' },
+    { type: 'trigger', shape: 'stadium', label: 'Trigger' },
+    { type: 'page', shape: 'parallelogram', label: 'Page/UI' },
+    { type: 'ui_component', shape: 'rectangle', label: 'Page/UI' },
+    { type: 'controller', shape: 'hexagon', label: 'State/Controller' },
+    { type: 'service', shape: 'subroutine', label: 'Service/Use Case' },
+    { type: 'repository', shape: 'subroutine', label: 'Repository/Data' },
+    { type: 'datasource', shape: 'cylinder', label: 'Repository/Data' },
+    { type: 'database', shape: 'cylinder', label: 'Repository/Data' },
+    { type: 'model', shape: 'rounded', label: 'Model' },
+    { type: 'external', shape: 'hexagon', label: 'External' },
+    { type: 'utility', shape: 'diamond', label: 'Utility' },
   ];
 
   function renderLegend() {
     if (!legendEl) return;
-    if (!flowData || !Array.isArray(flowData.nodes) || flowData.nodes.length === 0) {
+    if (!flowData) {
       legendEl.innerHTML = '';
       return;
     }
-    const present = new Set(flowData.nodes.map((n) => displayNodeType(n)));
-    const items = LEGEND_ITEMS.filter((item) => present.has(item.type));
-    // Any node type not in the known list falls back to a generic rectangle.
-    const known = new Set(LEGEND_ITEMS.map((item) => item.type));
-    if ([...present].some((t) => !known.has(t))) {
-      items.push({ type: 'file', shape: 'rectangle', label: 'Code / File' });
-    }
-    legendEl.innerHTML = items
+    const labels = new Set();
+    legendEl.innerHTML = LEGEND_ITEMS
+      .filter((item) => {
+        if (labels.has(item.label)) return false;
+        labels.add(item.label);
+        return true;
+      })
       .map(
         (item) =>
           '<span class="legend-item"><span class="legend-icon">' +
@@ -1124,7 +1325,34 @@
 
   function applyTransform() {
     diagramDiv.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    updateCanvasGrid();
     zoomLevel.textContent = `${Math.round(scale * 100)}%`;
+  }
+
+  function updateCanvasGrid() {
+    if (!diagramContainer) return;
+    canvasGridSize = Math.max(12, Math.min(56, 32 * scale));
+    canvasDotSize = Math.max(0.25, Math.min(1.35, 1 * scale));
+    diagramContainer.style.setProperty('--fp-canvas-grid-size', `${canvasGridSize}px`);
+    diagramContainer.style.setProperty('--fp-canvas-dot-size', `${canvasDotSize}px`);
+    diagramContainer.style.setProperty('--fp-canvas-highlight-size', `${Math.max(2, canvasDotSize * 2.2)}px`);
+  }
+
+  function updateDotHighlight(clientX, clientY) {
+    if (!diagramContainer) return;
+    const point = getContainerPoint(clientX, clientY);
+    const dotX = Math.round(point.x / canvasGridSize) * canvasGridSize;
+    const dotY = Math.round(point.y / canvasGridSize) * canvasGridSize;
+    const distance = Math.hypot(point.x - dotX, point.y - dotY);
+    const hitRadius = Math.max(5, canvasGridSize * 0.18);
+
+    if (distance <= hitRadius) {
+      diagramContainer.style.setProperty('--fp-canvas-highlight-x', `${dotX}px`);
+      diagramContainer.style.setProperty('--fp-canvas-highlight-y', `${dotY}px`);
+      diagramContainer.classList.add('dot-highlight');
+    } else {
+      diagramContainer.classList.remove('dot-highlight');
+    }
   }
 
   function clampScale(value) {
@@ -1209,18 +1437,50 @@
     applyTransform();
   }
 
-  zoomInBtn.addEventListener('click', () => setZoom(scale * 1.15));
-  zoomOutBtn.addEventListener('click', () => setZoom(scale / 1.15));
-  zoomFitBtn.addEventListener('click', fitDiagramToViewport);
+  zoomInBtn.addEventListener('click', () => {
+    if (isRoadmapFlowchartActive()) {
+      window.FlowPilotRoadmapRenderer?.zoomIn();
+      return;
+    }
+    setZoom(scale * 1.15);
+  });
+  zoomOutBtn.addEventListener('click', () => {
+    if (isRoadmapFlowchartActive()) {
+      window.FlowPilotRoadmapRenderer?.zoomOut();
+      return;
+    }
+    setZoom(scale / 1.15);
+  });
+  zoomFitBtn.addEventListener('click', () => {
+    if (isRoadmapFlowchartActive()) {
+      window.FlowPilotRoadmapRenderer?.fitView();
+      return;
+    }
+    fitDiagramToViewport();
+  });
 
   zoomResetBtn.addEventListener('click', () => {
+    if (isRoadmapFlowchartActive()) {
+      window.FlowPilotRoadmapRenderer?.reset();
+      return;
+    }
     scale = 1.0;
     translateX = 0;
     translateY = 0;
     applyTransform();
   });
 
+  if (domainToggleBtn) {
+    domainToggleBtn.addEventListener('click', () => {
+      showDomainAreas = !showDomainAreas;
+      domainToggleBtn.classList.toggle('active', showDomainAreas);
+      domainToggleBtn.setAttribute('aria-pressed', showDomainAreas ? 'true' : 'false');
+      renderDiagram();
+    });
+  }
+
   diagramContainer.addEventListener('wheel', (e) => {
+    if (isRoadmapFlowchartActive()) return;
     e.preventDefault();
     const delta = getNormalizedWheelDelta(e);
     const isZoomGesture = e.ctrlKey || e.metaKey;
@@ -1229,6 +1489,7 @@
       const focus = getContainerPoint(e.clientX, e.clientY);
       const zoomFactor = Math.exp(-delta.y * 0.0015);
       setZoom(scale * zoomFactor, focus);
+      updateDotHighlight(e.clientX, e.clientY);
       return;
     }
 
@@ -1236,13 +1497,24 @@
     translateX -= panX;
     translateY -= delta.y;
     applyTransform();
+    updateDotHighlight(e.clientX, e.clientY);
   }, { passive: false });
+
+  diagramContainer.addEventListener('mousemove', (e) => {
+    if (isRoadmapFlowchartActive()) return;
+    updateDotHighlight(e.clientX, e.clientY);
+  });
+
+  diagramContainer.addEventListener('mouseleave', () => {
+    diagramContainer.classList.remove('dot-highlight');
+  });
 
   // Pan with mouse drag (NO setPointerCapture — allows SVG node clicks to work)
   let mouseDownX = 0;
   let mouseDownY = 0;
 
   diagramContainer.addEventListener('mousedown', (e) => {
+    if (isRoadmapFlowchartActive()) return;
     if (isResizing) return;
     if (e.button !== 0) return; // Left click only
     isDragging = true;
@@ -1257,6 +1529,7 @@
 
   document.addEventListener('mousemove', (e) => {
     if (!isDragging || isResizing) return;
+    updateDotHighlight(e.clientX, e.clientY);
     const dx = e.clientX - mouseDownX;
     const dy = e.clientY - mouseDownY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;

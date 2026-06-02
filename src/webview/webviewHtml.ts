@@ -66,6 +66,12 @@ export function getFlowViewerHtml(
   const viewerScriptUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, 'webview', 'viewer', 'viewer.js')
   );
+  const flowchartReactScriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, 'webview', 'viewer', 'flowchart-react.js')
+  );
+  const flowchartReactStyleUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, 'webview', 'viewer', 'flowchart-react.css')
+  );
   const mermaidScriptUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, 'webview', 'shared', 'mermaid.min.js')
   );
@@ -82,8 +88,9 @@ export function getFlowViewerHtml(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource}; img-src ${webview.cspSource} data:;">
-  <link rel="stylesheet" href="${viewerStyleUri}">
   <link rel="stylesheet" href="${themeStyleUri}">
+  <link rel="stylesheet" href="${flowchartReactStyleUri}">
+  <link rel="stylesheet" href="${viewerStyleUri}">
   <title>Flow Pilot — ${flowTitle}</title>
 </head>
 <body>
@@ -98,6 +105,8 @@ export function getFlowViewerHtml(
       <span class="toolbar-sep"></span>
       <button id="zoom-fit" class="toolbar-btn" title="Fit to Screen">Fit</button>
       <button id="zoom-reset" class="toolbar-btn" title="Reset Zoom">Reset</button>
+      <span class="toolbar-sep"></span>
+      <button id="domain-toggle" class="toolbar-btn" title="Toggle Domain Areas" aria-pressed="false">Domain Areas</button>
     </div>
     <div class="diagram-tabs">
       <button class="tab-btn active" data-type="flowchart">Flowchart</button>
@@ -128,6 +137,7 @@ export function getFlowViewerHtml(
   </div>
   <script src="${mermaidScriptUri}"></script>
   <script src="${mermaidInitUri}"></script>
+  <script src="${flowchartReactScriptUri}"></script>
   <script src="${viewerScriptUri}"></script>
 </body>
 </html>`;

@@ -106,6 +106,11 @@ body {
   background: var(--fp-btn-hover, var(--vscode-button-hoverBackground));
 }
 
+.toolbar-btn.active {
+  background: var(--fp-btn-bg, var(--vscode-button-background));
+  color: var(--fp-btn-fg, var(--vscode-button-foreground));
+}
+
 .zoom-label {
   font-size: 0.85em;
   min-width: 48px;
@@ -228,11 +233,50 @@ body {
   overflow: hidden;
   cursor: grab;
   position: relative;
-  background: var(--fp-bg, var(--vscode-editor-background));
+  background-color: var(--fp-bg, var(--vscode-editor-background));
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--fp-description, var(--vscode-descriptionForeground)) 38%, transparent) 0 var(--fp-canvas-dot-size),
+    transparent calc(var(--fp-canvas-dot-size) + 0.15px)
+  );
+  background-position: 0 0;
+  background-size: var(--fp-canvas-grid-size) var(--fp-canvas-grid-size);
+  isolation: isolate;
+  --fp-canvas-grid-size: 32px;
+  --fp-canvas-dot-size: 1px;
+  --fp-canvas-highlight-size: 0px;
+  --fp-canvas-highlight-x: -9999px;
+  --fp-canvas-highlight-y: -9999px;
 }
 
 .diagram-container.grabbing {
   cursor: grabbing;
+}
+
+.diagram-container.react-flowchart-mode {
+  cursor: default;
+  background-image: none;
+}
+
+.diagram-container::before {
+  content: "";
+  position: absolute;
+  left: var(--fp-canvas-highlight-x);
+  top: var(--fp-canvas-highlight-y);
+  width: calc(var(--fp-canvas-highlight-size) * 2);
+  height: calc(var(--fp-canvas-highlight-size) * 2);
+  pointer-events: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fp-fg, var(--vscode-foreground)) 78%, var(--fp-btn-bg, var(--vscode-button-background)));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--fp-btn-bg, var(--vscode-button-background)) 34%, transparent);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity var(--fp-transition-fast);
+  z-index: 0;
+}
+
+.diagram-container.dot-highlight::before {
+  opacity: 1;
 }
 
 .diagram {
@@ -243,6 +287,7 @@ body {
   padding: 24px;
   min-width: 100%;
   min-height: 100%;
+  z-index: 1;
 }
 
 .diagram svg {
@@ -251,8 +296,369 @@ body {
   overflow: visible;
 }
 
+.diagram.fp-roadmap-root {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  transform: none !important;
+}
+
+.fp-roadmap-flow {
+  --fp-roadmap-edge: color-mix(in srgb, var(--fp-description, var(--vscode-descriptionForeground)) 72%, var(--fp-btn-bg, var(--vscode-button-background)));
+  --fp-roadmap-card-bg: color-mix(in srgb, var(--fp-bg, var(--vscode-editor-background)) 92%, var(--fp-sidebar-bg, var(--vscode-sideBar-background)));
+  --fp-roadmap-card-border: color-mix(in srgb, var(--fp-node-accent, #3b7f55) 74%, var(--fp-border, var(--vscode-panel-border)));
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 18% 34%, color-mix(in srgb, var(--fp-btn-bg, var(--vscode-button-background)) 9%, transparent) 0 1px, transparent 34%),
+    var(--fp-bg, var(--vscode-editor-background));
+}
+
+.fp-roadmap-background {
+  opacity: 0.5;
+  color: color-mix(in srgb, var(--fp-description, var(--vscode-descriptionForeground)) 28%, transparent);
+}
+
+.fp-roadmap-node {
+  width: 300px;
+  min-height: 132px;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 20px;
+  gap: 14px;
+  align-items: start;
+  padding: 18px 18px;
+  border: 1px solid var(--fp-roadmap-card-border);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--fp-node-accent, #3b7f55) 8%, transparent), transparent 60%),
+    var(--fp-roadmap-card-bg);
+  box-shadow:
+    0 14px 36px color-mix(in srgb, #000 18%, transparent),
+    0 1px 0 color-mix(in srgb, #fff 10%, transparent) inset;
+  color: var(--fp-fg, var(--vscode-foreground));
+  transition: border-color var(--fp-transition-fast), box-shadow var(--fp-transition-fast), transform var(--fp-transition-fast);
+}
+
+.fp-roadmap-node:hover,
+.fp-roadmap-node.selected {
+  border-color: color-mix(in srgb, var(--fp-node-accent, #3b7f55) 92%, var(--fp-fg, var(--vscode-foreground)));
+  box-shadow:
+    0 18px 42px color-mix(in srgb, #000 24%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--fp-node-accent, #3b7f55) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.fp-roadmap-icon {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--fp-node-accent, #3b7f55);
+  color: #ffffff;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--fp-node-accent, #3b7f55) 22%, transparent);
+}
+
+.fp-roadmap-copy {
+  min-width: 0;
+}
+
+.fp-roadmap-eyebrow {
+  margin-bottom: 8px;
+  color: var(--fp-node-accent, #3b7f55);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+
+.fp-roadmap-title {
+  color: var(--fp-fg, var(--vscode-foreground));
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.fp-roadmap-subtitle {
+  margin-top: 10px;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  font-size: 11px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fp-roadmap-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  color: color-mix(in srgb, var(--fp-description, var(--vscode-descriptionForeground)) 82%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.fp-roadmap-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fp-roadmap-arrow {
+  color: color-mix(in srgb, var(--fp-description, var(--vscode-descriptionForeground)) 70%, transparent);
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 4px;
+}
+
+.fp-roadmap-handle {
+  width: 8px !important;
+  height: 8px !important;
+  border: 1px solid var(--fp-roadmap-card-border) !important;
+  background: var(--fp-bg, var(--vscode-editor-background)) !important;
+  opacity: 0;
+}
+
+.fp-roadmap-edge-path {
+  stroke: var(--fp-roadmap-edge) !important;
+  stroke-width: 2.2px !important;
+  fill: none;
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--fp-bg, var(--vscode-editor-background)) 80%, transparent));
+}
+
+.fp-roadmap-edge-label {
+  position: absolute;
+  max-width: 180px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--fp-border, var(--vscode-panel-border)) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fp-bg, var(--vscode-editor-background)) 90%, transparent);
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  font-size: 10px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: 0 6px 18px color-mix(in srgb, #000 16%, transparent);
+}
+
+.fp-roadmap-controls {
+  border: 1px solid var(--fp-border, var(--vscode-panel-border));
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px color-mix(in srgb, #000 18%, transparent);
+}
+
+.fp-roadmap-controls button {
+  background: var(--fp-sidebar-bg, var(--vscode-sideBar-background));
+  color: var(--fp-fg, var(--vscode-foreground));
+  border-bottom-color: var(--fp-border, var(--vscode-panel-border));
+}
+
+.fp-roadmap-controls button:hover {
+  background: var(--fp-btn-secondary-bg, var(--vscode-button-secondaryBackground));
+}
+
+.fp-domain-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.fp-domain-box {
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--fp-domain-color) 52%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--fp-domain-color) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 5%, transparent);
+}
+
+.fp-domain-box span {
+  position: sticky;
+  top: 10px;
+  display: inline-flex;
+  margin: 10px 12px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fp-bg, var(--vscode-editor-background)) 82%, transparent);
+  color: color-mix(in srgb, var(--fp-domain-color) 76%, var(--fp-fg, var(--vscode-foreground)));
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+
+.fp-domain-legend {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  z-index: 8;
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 360px;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--fp-border, var(--vscode-panel-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fp-bg, var(--vscode-editor-background)) 86%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, #000 14%, transparent);
+}
+
+.fp-domain-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.fp-domain-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.fp-sequence-view {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: grab;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--fp-description, var(--vscode-descriptionForeground)) 25%, transparent) 0 0.8px, transparent 1px) 0 0 / 28px 28px,
+    var(--fp-bg, var(--vscode-editor-background));
+}
+
+.fp-sequence-view:active {
+  cursor: grabbing;
+}
+
+.fp-sequence-stage {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+.fp-sequence-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.fp-sequence-svg marker path {
+  fill: var(--fp-roadmap-edge, var(--fp-description, var(--vscode-descriptionForeground)));
+}
+
+.fp-sequence-lifeline {
+  stroke: color-mix(in srgb, var(--fp-description, var(--vscode-descriptionForeground)) 38%, transparent);
+  stroke-width: 1.2;
+  stroke-dasharray: 7 9;
+}
+
+.fp-sequence-message {
+  cursor: pointer;
+}
+
+.fp-sequence-message line {
+  stroke: var(--fp-roadmap-edge, var(--fp-description, var(--vscode-descriptionForeground)));
+  stroke-width: 2;
+}
+
+.fp-sequence-message.selected line,
+.fp-sequence-message:hover line {
+  stroke: var(--fp-btn-bg, var(--vscode-button-background));
+  stroke-width: 3;
+}
+
+.fp-sequence-message text {
+  fill: var(--fp-fg, var(--vscode-foreground));
+  font-size: 12px;
+  font-weight: 650;
+  paint-order: stroke;
+  stroke: var(--fp-bg, var(--vscode-editor-background));
+  stroke-width: 6px;
+  stroke-linejoin: round;
+}
+
+.fp-sequence-activation {
+  fill: color-mix(in srgb, var(--fp-btn-bg, var(--vscode-button-background)) 54%, transparent);
+  opacity: 0.55;
+}
+
+.fp-sequence-participant {
+  position: absolute;
+  width: 238px;
+  min-height: 86px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--fp-node-accent, #3b7f55) 72%, var(--fp-border, var(--vscode-panel-border)));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--fp-bg, var(--vscode-editor-background)) 92%, var(--fp-sidebar-bg, var(--vscode-sideBar-background)));
+  color: var(--fp-fg, var(--vscode-foreground));
+  box-shadow: 0 12px 30px color-mix(in srgb, #000 16%, transparent);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fp-sequence-participant:hover {
+  box-shadow: 0 16px 38px color-mix(in srgb, #000 22%, transparent), 0 0 0 3px color-mix(in srgb, var(--fp-node-accent, #3b7f55) 15%, transparent);
+}
+
+.fp-sequence-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--fp-node-accent, #3b7f55);
+  color: #fff;
+}
+
+.fp-sequence-participant small,
+.fp-sequence-participant strong,
+.fp-sequence-participant em {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fp-sequence-participant small {
+  margin-bottom: 5px;
+  color: var(--fp-node-accent, #3b7f55);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.fp-sequence-participant strong {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.fp-sequence-participant em {
+  margin-top: 6px;
+  color: var(--fp-description, var(--vscode-descriptionForeground));
+  font-size: 10px;
+  font-style: normal;
+}
+
 .diagram > svg {
-  background: var(--fp-bg, var(--vscode-editor-background));
+  background: transparent;
   outline: 1px dashed color-mix(in srgb, var(--fp-btn-bg, var(--vscode-button-background)) 45%, transparent);
 }
 
@@ -314,7 +720,7 @@ body {
    ============================================================================ */
 
 .native-diagram {
-  background: var(--fp-bg, var(--vscode-editor-background));
+  background: transparent;
   color: var(--fp-fg, var(--vscode-foreground));
 }
 
